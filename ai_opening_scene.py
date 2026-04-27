@@ -40,7 +40,7 @@ OPENING_SCENE_FACTS = [
     "A caravan is being massacred one hundred yards away by a group of four-armed grey-skinned demons.",
     "A winged demon circles above the massacre enjoying the carnage below.",
     "A wounded unconscious nekko woman with feline ears and a tail lies nearby, chained and marked by a faintly glowing red tattoo on her neck.",
-    "The tattoo on the girl is a slave mark, used by all races and made to be difficult to hide or remove.",
+    "The tattoo on the girl is a slave mark, used by all races and made to be difficult to hide or remove. It glows a faint but steady red.",
     "The player and the wounded woman are not yet noticed, but remaining exposed risks discovery by the demons.",
     "The caravan travelers and attacking demons are currently unnamed scene groups, not individually tracked NPCs.",
 ]

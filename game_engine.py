@@ -1,94 +1,60 @@
 # game_engine_complete.py
-
 import sys
-
 import json
 import copy
 import os
 import re
 import logging
 from typing import Dict, Any, Literal, List, Optional
-
 from datetime import datetime
-
 from pathlib import Path
-
 try:
     import requests
 except ImportError:
     requests = None
 import threading
-
 import time
-
 import signal
 from path_config import path_config
-
 # Import all your tools
-
 from combat_tools import CombatTools
 from combat_manager import CombatManager
-
 from map_tools import get_current_map, execute_map_command
-
 from inventory_tools import add_item_to_inventory
-
 from social_calc import resolve_social_interaction
-
 from crafting import craft_item, study_spell, create_spell, add_found_or_purchased_item
-
 from helper_functions import roll_generic_check
-
 from quest_tools import add_quest_to_journal, update_quest_progress, complete_quest, get_active_quests
-
 from npc_manager import get_npc, update_npc, get_npcs_by_location
-
 try:
     from web_interface import WebInterface
 except ImportError:
     WebInterface = None
 from character_creation import CharacterCreator
-
 from api_integration import APIManager
-
 from enhanced_social_calc import EnhancedSocialCalculator
 from ai_opening_scene import get_opening_scene_facts, get_opening_scene_text
-
 # Configuration
-
 GAME_STATE_PATH = path_config.game_state_path
 STORY_BIBLE_PATH = "Story_bible.txt"
-
 CHARACTER_TEMPLATES_PATH = "references/character_templates.json"
-
 API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"  # Mistral 3 Large endpoint
-
 logger = logging.getLogger("GameEngine")
-
 # Conversation management settings
-
 MAX_CONVERSATION_HISTORY = 4  # Keep last 4 player/DM exchanges
 SUMMARY_UPDATE_INTERVAL = 3  # Update summary every 3 interactions
-
 SUMMARY_FILE_NAME = "dm_summary.md"
 STORY_FILE_NAME = "story_transcript.md"
 DM_PROMPT_DEBUG_FILE_NAME = "last_dm_prompt_debug.md"
 DM_PROMPT_DEBUG_JSON_FILE_NAME = "last_dm_prompt_debug.json"
 DM_RESPONSE_DEBUG_JSON_FILE_NAME = "last_api_response_dm_narration.json"
-
 class ConversationManager:
-
     """Manages conversation history and summary for efficient API calls."""
-
     
-
     def __init__(self):
         self.history = []  # List of (player_input, dm_response) tuples
-
         self.summary = "Game has just begun."
-
         self.interactions_since_summary = 0
-
         self.story_bible = self._load_story_bible()
         self.summary_file_path = path_config.logs_dir / SUMMARY_FILE_NAME
         self.story_file_path = path_config.logs_dir / STORY_FILE_NAME
@@ -96,18 +62,12 @@ class ConversationManager:
         if loaded_summary:
             self.summary = loaded_summary
     
-
     def _load_story_bible(self) -> str:
         """Load the story bible for context."""
-
         try:
-
             with open(STORY_BIBLE_PATH, "r", encoding="utf-8") as f:
-
                 return f.read()
-
         except FileNotFoundError:
-
             return "Story bible not found."
     def _load_summary_file(self) -> str:
         """Load the persistent one-line turn summary file."""
@@ -158,233 +118,122 @@ class ConversationManager:
             for player_input, dm_response in self.history[-limit:]
         ]
     
-
     def _calculate_social_difficulty(self, player_input: str, target_npc: str) -> int:
-
         """Determine appropriate difficulty class for interaction"""
-
         base_difficulty = 50  # Neutral
-
         # Adjust based on interaction type
-
         interaction_adjustments = {
-
             "appeal": 0,
-
             "demand": 15,
-
             "gift": -10,
-
             "threat": 20,
-
             "flattery": -5
-
         }
-
         # Detect interaction type from player input if not specified
-
         interaction_type = "appeal"  # default
-
         for word in ["demand", "order", "command"]:
-
             if word in player_input.lower():
-
                 interaction_type = "demand"
-
                 break
-
         for word in ["gift", "give", "offer"]:
-
             if word in player_input.lower():
-
                 interaction_type = "gift"
-
                 break
-
         difficulty = base_difficulty + interaction_adjustments.get(interaction_type, 0)
-
         # Adjust based on NPC relationship
-
         npc_data = self.social_calculator._load_npc_data(target_npc)
-
         if npc_data:
-
             relationship = npc_data.get("relationship", "neutral")
-
             relationship_mods = {
-
                 "mortal enemy": 25,
-
                 "enemy": 15,
-
                 "adversary": 10,
-
                 "rival": 5,
-
                 "neutral": 0,
-
                 "acquaintance": -5,
-
                 "friend": -10,
-
                 "close friend": -15,
-
                 "lover": -20,
-
                 "soulmate": -25
-
             }
-
             difficulty += relationship_mods.get(relationship, 0)
-
         return max(10, min(90, difficulty))  # Clamp to reasonable range
-
     def _log_social_interaction(self, npc_id: str, player_action: str, result: Dict):
-
         """Log social interaction to game history"""
-
         try:
-
             log_entry = {
-
                 "timestamp": result["metadata"]["timestamp"],
-
                 "player_action": player_action,
-
                 "target_npc": npc_id,
-
                 "interaction_type": result["metadata"]["interaction_type"],
-
                 "success": result["social_result"]["success"],
-
                 "trust_change": result["social_result"]["trust_change"],
-
                 "old_relationship": result["social_result"].get("old_relationship", ""),
-
                 "new_relationship": result["social_result"]["new_relationship"],
-
                 "consequences": result["social_result"]["consequences"],
-
                 "narrative_summary": result["narrative"][:100] + "..."  # Truncated
-
             }
-
             # Add to conversation history
-
             self.conversation_manager.add_interaction(player_action, result["narrative"])
-
             # Save to social interaction log
-
             log_path = path_config.logs_dir / "social_interactions.json"
-
             logs = []
-
             if log_path.exists():
-
                 with open(log_path, "r", encoding="utf-8") as f:
-
                     logs = json.load(f)
-
             logs.append(log_entry)
-
             # Keep only last 100 entries
-
             if len(logs) > 100:
-
                 logs = logs[-100:]
-
             with open(log_path, "w", encoding="utf-8") as f:
-
                 json.dump(logs, f, indent=2)
-
         except Exception as e:
-
             logger.error(f"Failed to log social interaction: {str(e)}")
-
         
-
     def add_interaction(self, player_input: str, dm_response: str):
-
         """Add a new interaction to the conversation history."""
-
         self.history.append((player_input, dm_response))
-
         self.interactions_since_summary += 1
-
         
-
         # Keep only the most recent interactions
-
         if len(self.history) > MAX_CONVERSATION_HISTORY:
-
             self.history = self.history[-MAX_CONVERSATION_HISTORY:]
-
         
-
         # Persistent one-line summaries are appended after each completed turn.
     
-
     def _update_summary(self):
-
         """Update the conversation summary based on recent interactions."""
-
         if not self.history:
-
             return
-
         
-
         # Simple summary generation
-
         recent_events = []
-
         for player_input, dm_response in self.history[-SUMMARY_UPDATE_INTERVAL:]:
-
             recent_events.append(f"Player: {player_input[:50]}... DM: {dm_response[:50]}...")
-
         
-
         self.summary = f"Recent events: {', '.join(recent_events)}"
-
     
-
     def get_conversation_context(self) -> str:
-
         """Get the formatted conversation context for the API."""
-
         context = f"""STORY BIBLE:
-
 {self.story_bible}
-
 SUMMARY FILE:
 {self.get_summary_file_text()}
-
 RECENT INTERACTIONS:
-
 """
-
         
-
         for i, (player_input, dm_response) in enumerate(self.history[-MAX_CONVERSATION_HISTORY:], 1):
             context += f"\nInteraction {i}:\nPlayer: {player_input}\nDM: {dm_response}\n"
-
         
-
         return context
-
 class GameEngine:
-
     def __init__(self, start_web: bool = True, open_browser: bool = True,
                  host: str = "127.0.0.1", port: int = 5000):
         print("🎮 Initializing Game Engine...")
-
         
-
         # Initialize all systems
-
         self.combat = CombatTools()
         self.combat_manager = CombatManager(self)
-
         self.conversation_manager = ConversationManager()
         self.conversation_manager.summary = (
             "The adventure begins at the opening crisis: the player has awakened "
@@ -392,42 +241,25 @@ class GameEngine:
             "wounded nekko woman nearby and demons below."
             )
         self.character_creator = CharacterCreator()
-
         # Initialize API manager and enhanced social calculator
-
         self.api_manager = APIManager()
-
         self.social_calculator = EnhancedSocialCalculator(self.api_manager)
-
         # Check if game state exists
-
         self.game_state_exists = os.path.exists(GAME_STATE_PATH)
-
         
-
         if self.game_state_exists:
-
             self._load_game_state()
-
             print("📁 Loaded existing game state")
-
         else:
-
             self.game_state = {"player": {}, "npcs": {}, "quests": {}, "world": {}}
-
             print("📝 No existing game found - new game will be created")
-
         
-
         # Set up signal handler for clean shutdown
-
         if threading.current_thread() is threading.main_thread():
             signal.signal(signal.SIGINT, self._handle_shutdown)
             signal.signal(signal.SIGTERM, self._handle_shutdown)
         
-
         # Start web interface
-
         self.web_interface = None
         self.web_thread = None
         self.host = host
@@ -439,119 +271,93 @@ class GameEngine:
             raise RuntimeError("Flask is not installed. Run pip install -r requirements.txt before launching the web UI.")
         self.web_interface = WebInterface(host=host, port=port, open_browser=open_browser)
         self.web_interface.set_game_engine(self)
-
         
-
         print("🌐 Starting web interface...")
-
         self.web_thread = threading.Thread(target=self._start_web_interface, daemon=True)
-
         self.web_thread.start()
-
         
-
         # Wait for web interface to start
-
         time.sleep(3)
-
         
-
         print("✅ Game engine fully initialized!")
-
         print("🌐 Web interface should have opened automatically in your browser")
-
         print(f"   If not, open: http://{host}:{port}")
         print("\n🎮 Ready to play! Press Ctrl+C to exit cleanly.")
-
     
-
     def _handle_shutdown(self, signum, frame):
-
         """Handle shutdown signals for clean exit."""
-
         print("\n🛑 Shutting down game engine...")
-
         
-
         # Stop web interface properly
-
         if hasattr(self, 'web_interface'):
-
             try:
-
                 print("   Stopping web server...")
-
                 self.web_interface.stop_server()
-
             except Exception as e:
-
                 print(f"   Error stopping web server: {e}")
-
         
-
         # Give threads time to clean up
-
         time.sleep(1.5)
-
         
-
         print("✅ Game engine stopped cleanly")
-
         
-
         # Force exit to prevent hanging
-
         os._exit(0)   # This is the key for reliable shutdown on Windows
-
     def _start_web_interface(self):
-
         """Start the web interface."""
-
         self.web_interface.run()
-
-    
-
+    def _clean_known_facts(self):
+        """Prevent known_facts from nesting or exploding."""
+        npcs = self.game_state.setdefault("npcs", {})
+        for npc_id, npc in npcs.items():
+            if not isinstance(npc, dict):
+                continue
+            identity = self._npc_identity(npc)
+            facts = identity.get("known_facts", [])
+            
+            if isinstance(facts, dict):          # Nested dict case
+                facts = list(facts.values()) if isinstance(facts, dict) else []
+            
+            if isinstance(facts, list):
+                cleaned = []
+                seen = set()
+                for f in facts:
+                    if isinstance(f, (list, dict)):   # Catch nested structures
+                        f = str(f)[:300]              # Flatten it
+                    clean = " ".join(str(f).split()).strip()
+                    if clean and clean not in seen and len(clean) < 500:
+                        seen.add(clean)
+                        cleaned.append(clean)
+                
+                # Hard cap
+                identity["known_facts"] = cleaned[-50:]   # Max 50 facts per NPC
+            else:
+                identity["known_facts"] = []
     def _load_game_state(self):
-
         """Load the game state from file."""
-
         try:
-
             with open(GAME_STATE_PATH, "r", encoding="utf-8") as f:
-
                 self.game_state = json.load(f)
+            self._clean_known_facts()
             self._normalize_npc_records()
             self._reset_stale_combat_state()
             self._save_game_state()
         except FileNotFoundError:
             print(f"Warning: Game state file not found at {GAME_STATE_PATH}")
-
             self.game_state = {"player": {}, "npcs": {}, "quests": {}, "world": {}}
-
         except json.JSONDecodeError as e:
-
             print(f"Error loading game state: {e}")
-
             self.game_state = {"player": {}, "npcs": {}, "quests": {}, "world": {}}
-
     
-
     def _save_game_state(self):
-
         """Save the game state to file."""
-
         try:
-
+            self._clean_known_facts()           # ← ADD THIS
             self._normalize_npc_records()
             with open(GAME_STATE_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.game_state, f, indent=2)
-
         except Exception as e:
-
             print(f"Error saving game state: {e}")
-
-    
-
     def _normalize_key_text(self, value: Any) -> str:
         """Normalize NPC identifiers and display names for matching."""
         return re.sub(r"\s+", " ", str(value or "").strip()).lower()
@@ -608,13 +414,30 @@ class GameEngine:
             if isinstance(player_rel, dict):
                 return player_rel.get("interaction_history", default)
         return npc.get(field, default)
-    def _append_npc_known_fact(self, npc: Dict[str, Any], fact: str):
+
+    def _append_npc_known_fact(self, npc: Dict[str, Any], fact: Any):
+        """Only add clean, readable narrative facts."""
         identity = self._npc_identity(npc)
         known_facts = identity.setdefault("known_facts", [])
-        if isinstance(known_facts, list):
-            clean = " ".join(str(fact).split()).strip()
-            if clean and clean not in known_facts:
-                known_facts.append(clean)
+
+        if not isinstance(known_facts, list):
+            known_facts = []
+            identity["known_facts"] = known_facts
+
+        clean = " ".join(str(fact).split()).strip()[:450]
+
+        # Block technical garbage
+        bad_phrases = ["stats:", "skills:", "derived:", "known_facts:", "gold:", "{", "':", "0.0"]
+        if any(phrase in clean.lower() for phrase in bad_phrases):
+            return
+
+        if clean and len(clean) > 12 and clean not in known_facts:
+            known_facts.append(clean)
+
+        # Keep only the most recent 40 facts
+        if len(known_facts) > 40:
+            known_facts[:] = known_facts[-40:]
+            
     def _normalize_relationships_value(self, relationships: Any) -> Dict[str, Any]:
         """Normalize relationship data so history uses template vocabulary."""
         if not isinstance(relationships, dict):
@@ -631,52 +454,57 @@ class GameEngine:
                 if isinstance(event, dict) and "emotional_response" in event:
                     event.setdefault("mood", event.pop("emotional_response"))
         return normalized
+
     def _set_npc_field(self, npc: Dict[str, Any], field: str, value: Any):
-        """Write NPC data into the canonical template fields only."""
+        """Safely write NPC data - protect known_facts from technical garbage."""
         identity = self._npc_identity(npc)
         template_fields = self._template_identity_fields()
+
         if field in {"npc_id", "aliases", "updated_at", "experience"}:
             return
+
         if field == "trust_level":
             field = "trust"
         if field == "emotional_response":
             field = "mood"
+
+        # === RELATIONSHIPS ===
         if field == "relationship":
             relationships = identity.setdefault("relationships", {})
             player_rel = relationships.setdefault("player", {})
             if isinstance(player_rel, dict):
-                player_rel["relationship"] = value
+                player_rel["relationship"] = str(value)
             return
+
         if field == "interaction_history":
             relationships = identity.setdefault("relationships", {})
             player_rel = relationships.setdefault("player", {})
             if isinstance(player_rel, dict):
-                history = value if isinstance(value, list) else []
-                for event in history:
-                    if isinstance(event, dict) and "emotional_response" in event:
-                        event.setdefault("mood", event.pop("emotional_response"))
-                player_rel["interaction_history"] = history
+                player_rel["interaction_history"] = value if isinstance(value, list) else []
             return
-        if field == "last_interaction":
-            relationships = identity.setdefault("relationships", {})
-            player_rel = relationships.setdefault("player", {})
-            if isinstance(player_rel, dict):
-                player_rel["last_interaction"] = value
+
+        # === BIG TECHNICAL OBJECTS - DO NOT DUMP INTO known_facts ===
+        if field in {"stats", "skills", "derived", "inventory", "equipment", "gold", "personality", "voice_profile"}:
+            if isinstance(value, (dict, list)):
+                npc[field] = value
             return
-        if field == "knowledge" and isinstance(value, dict):
-            for key, detail in value.items():
-                self._append_npc_known_fact(npc, f"{key}: {detail}")
-            return
-        if field == "relationships":
-            identity["relationships"] = self._normalize_relationships_value(value)
-            return
-        if field in {"status", "injuries", "location", "discovery_risk", "notes", "physical_state", "dialogue_context", "role", "faction", "conditions"}:
+
+        # === GOOD NARRATIVE FACTS ===
+        if field in {"status", "injuries", "wounds", "conditions", "physical_state", "notes", 
+                     "location", "bleeding", "fracture", "chain", "slave_mark", "tattoo"}:
             self._append_npc_known_fact(npc, f"{field}: {value}")
             return
+
+        # === TEMPLATE IDENTITY FIELDS ===
         if field in template_fields:
             identity[field] = value
             return
-        self._append_npc_known_fact(npc, f"{field}: {value}")
+
+        # === SAFE FALLBACK ===
+        if isinstance(value, (str, int, float, bool)):
+            self._append_npc_known_fact(npc, f"{field}: {value}")
+        # Skip complex objects
+
     def _make_template_npc(self, npc_id: str, source: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Instantiate a canonical NPC record from references/character_templates.json."""
         template = copy.deepcopy(self._load_character_template())
@@ -898,7 +726,6 @@ class GameEngine:
             logger.error(f"Failed to write DM prompt debug file: {e}")
     def _call_mistral_api(self, prompt: str) -> str:
         """Call the Mistral 3 Large API."""
-
         api_key = self.api_manager.api_key
         system_content = (
             "You are the DM for a dark fantasy TTRPG. Preserve player agency strictly. "
@@ -938,20 +765,13 @@ class GameEngine:
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
-
         }
-
         
-
         data = {
-
             "model": self.api_manager.dm_model,
             "messages": [
-
                 {
-
                     "role": "system",
-
                     "content": (
                         "You are the DM for a dark fantasy TTRPG. Preserve player agency strictly. "
                         "Narrate only the direct consequences of the player's declared action and what NPCs, enemies, "
@@ -961,33 +781,21 @@ class GameEngine:
                         "and leave the next choice unresolved. End with exactly one JSON command block."
                     )
                 },
-
                 {
-
                     "role": "user",
-
                     "content": prompt
-
                 }
-
             ],
-
             "temperature": 0.7,
-
             "max_tokens": 1000
         }
-
         try:
-
             self.api_manager.delay_before_call()
             data["messages"] = messages
             response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=30)
             response.raise_for_status()
-
             
-
             result = response.json()
-
             content = result["choices"][0]["message"]["content"].strip()
             self._write_dm_response_debug(content, result, input_tokens)
             self.api_manager.record_token_usage(
@@ -999,13 +807,9 @@ class GameEngine:
             )
             return content
             
-
         except requests.exceptions.RequestException as e:
-
             error_msg = f"[API ERROR] {type(e).__name__}: {str(e)}"
-
             print(error_msg)
-
             fallback = self._fallback_dm_response(error_msg)
             self._write_dm_response_debug(fallback, {"source": "fallback", "reason": error_msg}, input_tokens)
             self.api_manager.record_token_usage(
@@ -1050,7 +854,6 @@ class GameEngine:
             f"```json\n{json.dumps(command)}\n```"
         )
     
-
     def _compact_text(self, value: Any, max_chars: int = 1200) -> str:
         """Collapse whitespace and cap text for prompt budget control."""
         compact = " ".join(str(value or "").split())
@@ -1430,7 +1233,6 @@ class GameEngine:
         identity = player.get("identity") if isinstance(player, dict) and isinstance(player.get("identity"), dict) else {}
         facts = []
         facts.extend(identity.get("known_facts", []) if isinstance(identity.get("known_facts"), list) else [])
-
         inventory = player.get("inventory") if isinstance(player, dict) and isinstance(player.get("inventory"), dict) else {}
         equipment = player.get("equipment") if isinstance(player, dict) and isinstance(player.get("equipment"), dict) else {}
         if inventory:
@@ -1448,7 +1250,6 @@ class GameEngine:
         npcs = self.game_state.get("npcs", {})
         if not isinstance(npcs, dict):
             return []
-
         turn_context = context.get("turn_context", {}) if isinstance(context.get("turn_context"), dict) else {}
         involved = {str(npc_id) for npc_id in turn_context.get("involved_npcs", []) or []}
         info_text = self._normalize_key_text(" ".join([
@@ -1459,7 +1260,6 @@ class GameEngine:
             " ".join(str(fact) for fact in context.get("world_facts", []) or []),
             " ".join(involved),
         ]))
-
         relevant = []
         for npc_id, npc in npcs.items():
             if not isinstance(npc, dict):
@@ -1474,7 +1274,6 @@ class GameEngine:
             )
             if not mentioned:
                 continue
-
             facts = self._get_npc_field(npc, "known_facts", [])
             relevant.append({
                 "npc_id": npc_id,
@@ -2173,7 +1972,6 @@ class GameEngine:
                                     narrative_brief: Optional[Dict[str, Any]] = None) -> str:
         """Format only final pre-DM constraints, not agent reasoning."""
         constraints: Dict[str, Any] = {}
-
         if isinstance(skill_result, dict) and skill_result:
             success = bool(skill_result.get("success"))
             margin = skill_result.get("margin")
@@ -2187,7 +1985,6 @@ class GameEngine:
                     "Narrate the declared action as failing; keep the margin in mind for degree."
                 ),
             }
-
         compact_social = self._compact_social_result_for_prompt(social_result)
         if compact_social:
             constraints["social_result"] = {
@@ -2195,11 +1992,9 @@ class GameEngine:
                 for key, value in compact_social.items()
                 if value not in (None, "", {}, [])
             }
-
         compact_review = self._compact_npc_review_for_prompt(npc_review)
         if compact_review.get("npc_actions"):
             constraints["npc_actions"] = compact_review["npc_actions"]
-
         compact_turn = self._compact_turn_context_for_prompt(turn_context)
         continuity = compact_turn.get("continuity_constraints") or []
         forbidden = compact_turn.get("forbidden_assumptions") or []
@@ -2207,9 +2002,7 @@ class GameEngine:
             constraints["continuity_constraints"] = continuity
         if forbidden:
             constraints["forbidden_assumptions"] = forbidden
-
         return json.dumps(constraints, indent=2)
-
     def _select_dm_lore_profiles(self, player_input: str,
                                  turn_context: Optional[Dict[str, Any]],
                                  scene_facts: List[str]) -> Dict[str, Any]:
@@ -2243,7 +2036,6 @@ class GameEngine:
             if len(selected) >= 3:
                 break
         return selected
-
     def _format_player_possessions_for_dm(self) -> str:
         """Return a terse possession constraint for the DM."""
         possessions = self._compact_player_possessions_for_prompt()
@@ -2318,9 +2110,7 @@ class GameEngine:
                 "Treat these as hard outcome constraints; do not explain mechanics.\n"
                 f"{precomputed_context}"
             )
-
         context = "\n\n".join(sections) + f"""
-
 PLAYER ACTION: {player_input_json}
 PLAYER AGENCY RULES:
 - Resolve only what the player explicitly attempts.
@@ -2347,7 +2137,6 @@ Do not emit social_interaction for the current player action. Use skill_check on
 ONLY output the narrative + one JSON block. No extra text."""
         
         return context
-
     def _command_payload(self, command: Dict[str, Any]) -> Dict[str, Any]:
         """Return the nested command payload when present."""
         payload = command.get("command", {})
@@ -2451,7 +2240,6 @@ ONLY output the narrative + one JSON block. No extra text."""
         if not isinstance(command, dict):
             return {"success": False, "message": "Command entry must be an object"}
         action = command.get("action", "").lower()
-
         if action in {"", "none", "noop", "narrative", "error"}:
             return {
                 "success": action != "error",
@@ -2506,7 +2294,6 @@ ONLY output the narrative + one JSON block. No extra text."""
         if action in {"combat_action", "combat"}:
             return self.combat.execute_combat_command(command["command"])
         elif action == "social_interaction":
-
             social_command = command.get("command", {})
             target_npc = social_command.get("target_npc") or social_command.get("npc_id")
             if not target_npc:
@@ -2518,7 +2305,6 @@ ONLY output the narrative + one JSON block. No extra text."""
                 interaction_type=social_command.get("interaction_type", "appeal")
             )
         elif action == "inventory":
-
             inventory_command = command.get("command", {})
             inventory_action = inventory_command.get("action", "").lower()
             if inventory_action == "add":
@@ -2531,31 +2317,21 @@ ONLY output the narrative + one JSON block. No extra text."""
                 ))
             return {"success": True, "message": "Inventory action acknowledged"}
         elif action == "quest":
-
             quest_command = command.get("command", {})
-
             if quest_command.get("action") == "add":
-
                 self._save_game_state()
                 return self._reload_game_state_after_external_update(add_quest_to_journal(quest_command.get("quest_data")))
             elif quest_command.get("action") == "update":
-
                 self._save_game_state()
                 return self._reload_game_state_after_external_update(update_quest_progress(quest_command.get("quest_id"), quest_command.get("objective")))
             elif quest_command.get("action") == "complete":
-
                 self._save_game_state()
                 return self._reload_game_state_after_external_update(complete_quest(quest_command.get("quest_id")))
         elif action == "npc":
-
             npc_command = command.get("command", {})
-
             if npc_command.get("action") == "get":
-
                 return get_npc(npc_command.get("npc_id"))
-
             elif npc_command.get("action") == "update":
-
                 return self._apply_npc_update({
                     "action": "npc_update",
                     "command": {
@@ -2564,15 +2340,10 @@ ONLY output the narrative + one JSON block. No extra text."""
                     }
                 })
         else:
-
             return {"success": False, "message": f"Unknown action: {action}"}
-
     def process_player_action(self, player_input: str) -> Dict:
-
         """Process a player action and return the result."""
-
         self._load_game_state()  # Refresh game state
-
         # 1. Build the full turn pipeline: small context, Python mechanics, large NPC/DM narration.
         turn_context = self._evaluate_turn_context(player_input)
         social_check = self._detect_social_check(player_input, turn_context)
@@ -2626,30 +2397,20 @@ ONLY output the narrative + one JSON block. No extra text."""
         
         # 2. Call the Mistral API
         llm_text = self._call_mistral_api(prompt)
-
-
         # 3. Extract the JSON command
-
         import re
-
         narrative = re.split(r'```(?:json)?', llm_text, maxsplit=1)[0].strip()
         if not narrative:
             narrative = "The moment resolves, but the DM response did not include narrative text."
-
         json_match = re.search(r'```(?:json)?\s*(.+?)\s*```', llm_text, re.DOTALL)
         if json_match:
-
             try:
                 command = json.loads(json_match.group(1))
-
             except json.JSONDecodeError as e:
                 command = {"action": "error", "message": f"Invalid JSON command: {e}"}
-
         else:
             command = {"action": "error", "message": "No JSON command found"}
-
         # 4. Execute the command
-
         try:
             result = self._execute_command(command)
         except Exception as e:
@@ -2658,9 +2419,7 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "success": False,
                 "message": f"Command execution failed after DM response: {type(e).__name__}: {e}"
             }
-
         # 5. Update conversation history
-
         self.conversation_manager.add_interaction(player_input, narrative)
         self.conversation_manager.append_story_exchange(player_input, narrative, command)
         try:
@@ -2680,9 +2439,7 @@ ONLY output the narrative + one JSON block. No extra text."""
         except Exception as e:
             logger.exception("Failed to summarize completed turn")
             turn_summary = f"Summary failed after turn completion: {type(e).__name__}: {e}"
-
         # 6. Save game state
-
         try:
             self._save_game_state()
         except Exception as e:
@@ -2691,11 +2448,8 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "success": False,
                 "message": f"{result.get('message', '')} Save failed: {type(e).__name__}: {e}".strip()
             }
-
         # 7. Return the result
-
         return {
-
             "narrative": narrative,
             "command_executed": command,
             "mechanical_result": result,
@@ -2711,17 +2465,12 @@ ONLY output the narrative + one JSON block. No extra text."""
             "updated_combat_state": self.combat.state if self.combat.state.get("active") else None,
             "map": get_current_map(self.combat.state) if self.combat.state.get("active") else None
         }
-
     def get_game_start_options(self) -> Dict:
-
         """Get available game start options - ALWAYS shows new game option first."""
-
         return {
-
             "has_existing_game": self.game_state_exists,
             "message": "Welcome to Isekai RPG! What would you like to do?",
             "options": [
-
                 {
                     "id": "new_game",
                     "title": "🆕 Start New Game",
@@ -2739,11 +2488,8 @@ ONLY output the narrative + one JSON block. No extra text."""
                 }
             ]
         }
-
     def start_new_game(self, character_data: Dict) -> Dict:
-
         """Start a new game with the given character."""
-
         character_name = (
             character_data.get("name")
             or character_data.get("character", {}).get("identity", {}).get("name")
@@ -2751,9 +2497,7 @@ ONLY output the narrative + one JSON block. No extra text."""
         )
         print("🎮 Starting new game with character:", character_name)
         
-
         # Create character using the character creator
-
         if isinstance(character_data.get("character"), dict):
             creation_result = {
                 "success": True,
@@ -2772,24 +2516,19 @@ ONLY output the narrative + one JSON block. No extra text."""
                 known_facts=character_data.get("known_facts"),
                 age=character_data.get("age"),
         )
-
         if not creation_result["success"]:
             return {
                 "success": False,
                 "error": creation_result["error"],
                 "field": creation_result.get("field", "unknown")
             }
-
         # Initialize new game state
         opening_scene = get_opening_scene_text()
         opening_scene_facts = get_opening_scene_facts()
         self.game_state = {
-
             "schema_version": 1,
-
             "player": creation_result["character"],
             "npcs": {},
-
             "quests": {},
             "scenario": {
                 "opening_scene": {
@@ -2803,9 +2542,7 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "scene_facts": opening_scene_facts
             },
             "world": {
-
                 "location": {
-
                     "settlement": "Caravan Road Ambush",
                     "region": "Forested River Road",
                     "coordinates": [0, 0]
@@ -2822,24 +2559,19 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "difficulty": "normal"
             }
         }
-
         # Save the new game state
-
         self._save_game_state()
         self.combat.end_combat()
         self.game_state_exists = True
         
         # Reset conversation history
-
         self.conversation_manager = ConversationManager()
         self.conversation_manager.summary = (
             "The adventure begins at the opening crisis: the player has awakened "
             "hidden on a forested slope above a caravan massacre, with a chained "
             "wounded nekko woman nearby and demons below."
             )
-
         print("✅ New game started successfully!")
-
         return {
             "success": True,
             "message": "New game started successfully! Welcome to your adventure.",
@@ -2847,31 +2579,22 @@ ONLY output the narrative + one JSON block. No extra text."""
             "starting_location": "Caravan Road Ambush, Forested River Road",
             "opening_scene": opening_scene
         }
-
     def continue_existing_game(self) -> Dict:
-
         """Continue an existing game."""
-
         if not self.game_state_exists:
             return {
                 "success": False,
                 "error": "No existing game found to continue"
             }
-
         self._load_game_state()
-
         print("📁 Continuing existing game")
-
         return {
             "success": True,
             "message": f"Welcome back! Continuing your adventure from {self.game_state['world']['location']['settlement']}.",
             "game_state": self.game_state
         }
-
     def get_character_creation_info(self) -> Dict:
-
         """Get information needed for character creation."""
-
         return {
             "available_races": self.character_creator.get_available_races(),
             "stat_allocation_rules": self.character_creator.get_stat_allocation_rules(),
@@ -2879,21 +2602,12 @@ ONLY output the narrative + one JSON block. No extra text."""
                           for race in self.character_creator.get_available_races()},
             "suggested_backgrounds": self.character_creator.backgrounds
         }
-
     def get_base_stats_for_character(self, race: str, gender: str) -> Optional[Dict]:
-
         """Get base stats for a race/gender combination."""
-
         return self.character_creator.get_base_stats_for_race_gender(race, gender)
-
-
     def get_suggested_backgrounds(self, race: str) -> List[str]:
-
         """Get suggested backgrounds for a race."""
-
         return self.character_creator.get_suggested_backgrounds(race)
-
-
     def _calculate_social_difficulty(self, player_input: str, target_npc: str) -> int:
         """Determine an interaction DC from phrasing and current NPC relationship."""
         difficulty = 50
@@ -2954,7 +2668,6 @@ ONLY output the narrative + one JSON block. No extra text."""
             logger.error(f"Failed to log social interaction: {e}")
     def get_game_state(self) -> Dict:
         """Get the current game state."""
-
         return self.game_state
     def get_token_usage(self) -> Dict:
         """Get current session token usage."""
@@ -2962,54 +2675,35 @@ ONLY output the narrative + one JSON block. No extra text."""
     def process_social_interaction(self, player_input: str, target_npc: str,
                               interaction_type: str = "appeal") -> Dict[str, Any]:
         """Process a social interaction with enhanced system"""
-
         try:
             # Determine difficulty based on context
-
             target_npc = self._resolve_npc_reference(target_npc) or target_npc
             difficulty = self._calculate_social_difficulty(player_input, target_npc)
             # Use enhanced social calculator
             result = self.social_calculator.resolve_social_interaction(
                 target_npc, interaction_type, player_input, difficulty
             )
-
             # Log the interaction
-
             self._log_social_interaction(target_npc, player_input, result)
-
             return result
-
         except Exception as e:
             logger.error(f"Social interaction processing failed: {str(e)}")
-
             return {
                 "narrative": "An error occurred processing the social interaction.",
                 "social_result": {"success": False, "trust_change": 0},
                 "npc_reaction": {"dialogue": "..."}
             }
-
     def get_combat_state(self) -> Dict:
-
         """Get the current combat state."""
-
         return self.combat.state
-
     def get_combat_map(self) -> Dict:
-
         """Get the current combat map."""
-
         return get_current_map(self.combat.state) if self.combat.state.get("active") else {"map_grid": "No active map", "legend": "No legend"}
-
     def get_npcs(self) -> List[Dict]:
-
         """Get all NPCs."""
-
         return list(self.game_state.get("npcs", {}).values())
-
     def get_quests(self) -> List[Dict]:
-
         """Get all quests."""
-
         quests = self.game_state.get("quests", {})
         if isinstance(quests, dict):
             flattened = []
@@ -3022,21 +2716,14 @@ ONLY output the narrative + one JSON block. No extra text."""
         if isinstance(quests, list):
             return quests
         return []
-
 # Main entry point
-
 if __name__ == "__main__":
-
     print("🚀 Starting Isekai RPG Game Engine...")
-
     engine = GameEngine()
-
     # Keep the main thread alive
-
     try:
         while True:
             time.sleep(1)
-
     except KeyboardInterrupt:
         # This should be handled by the signal handler, but just in case
         print("\n🛑 Shutting down...")
