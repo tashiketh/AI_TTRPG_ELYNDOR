@@ -1,0 +1,647 @@
+{
+  "schema_version": "1.0",
+  "source_file": "enemy_table_v2.csv",
+  "enemies": [
+    {
+      "name": "Wild Dog",
+      "archetype": "beast",
+      "subtype": "canine",
+      "faction": "none",
+      "aggression": "cowardly",
+      "environment": [
+        "plains",
+        "forest",
+        "slums"
+      ],
+      "CV": 1,
+      "tier": 1,
+      "Str": 5,
+      "Agi": 13,
+      "Vit": 4,
+      "Ins": 3,
+      "Will": 3,
+      "Crea": 4,
+      "weight": 12,
+      "role": "melee",
+      "tags": ["wild_animal"]
+    },
+    {
+      "name": "Wolf ",
+      "archetype": "beast",
+      "subtype": "canine",
+      "faction": "goblin",
+      "aggression": "cowardly",
+      "environment": [
+        "plains",
+        "forest",
+        "mountains"
+      ],
+      "CV": 2,
+      "tier": 1,
+      "Str": 6,
+      "Agi": 14,
+      "Vit": 6,
+      "Ins": 2,
+      "Will": 4,
+      "Crea": 2,
+      "weight": 10,
+      "role": "melee",
+      "tags": [
+        "wild_animal",
+        "pet"
+      ]
+    },
+    {
+      "name": "Wolf Pack Alpha",
+      "archetype": "beast",
+      "subtype": "canine",
+      "faction": "none",
+      "aggression": "brave",
+      "environment": [
+        "plains",
+        "forest",
+        "mountains"
+      ],
+      "CV": 5,
+      "tier": 2,
+      "Str": 13,
+      "Agi": 14,
+      "Vit": 10,
+      "Ins": 6,
+      "Will": 9,
+      "Crea": 5,
+      "weight": 3,
+      "role": "melee",
+      "tags": ["wild_animal"]
+    },
+    {
+      "name": "Giant Ant worker",
+      "archetype": "beast",
+      "subtype": "insect",
+      "faction": "ant_nest",
+      "aggression": "mindless",
+      "environment": [
+        "plains",
+        "forest",
+        "caves"
+      ],
+      "CV": 1,
+      "tier": 2,
+      "Str": 10,
+      "Agi": 3,
+      "Vit": 4,
+      "Ins": 1,
+      "Will": 1,
+      "Crea": 1,
+      "weight": 8,
+      "role": "melee",
+      "tags": ["hive_mind"]
+    },
+    {
+      "name": "Giant Ant Soldier",
+      "archetype": "beast",
+      "subtype": "insect",
+      "faction": "ant_nest",
+      "aggression": "mindless",
+      "environment": [
+        "plains",
+        "forest",
+        "caves"
+      ],
+      "CV": 1,
+      "tier": 2,
+      "Str": 14,
+      "Agi": 3,
+      "Vit": 5,
+      "Ins": 1,
+      "Will": 1,
+      "Crea": 1,
+      "weight": 7,
+      "role": "melee",
+      "tags": ["hive_mind"]
+    },
+    {
+      "name": "Giant Ant Queen",
+      "archetype": "beast",
+      "subtype": "insect",
+      "faction": "ant_nest",
+      "aggression": "mindless",
+      "environment": ["caves"],
+      "CV": 12,
+      "tier": 3,
+      "Str": 12,
+      "Agi": 2,
+      "Vit": 13,
+      "Ins": 4,
+      "Will": 10,
+      "Crea": 2,
+      "weight": 1,
+      "role": "leader",
+      "tags": ["hive_mind"]
+    },
+    {
+      "name": "Giant Rat",
+      "archetype": "beast",
+      "subtype": "rodent",
+      "faction": "none",
+      "aggression": "cowardly",
+      "environment": [
+        "basement",
+        "slums"
+      ],
+      "CV": 1,
+      "tier": 1,
+      "Str": 3,
+      "Agi": 10,
+      "Vit": 3,
+      "Ins": 1,
+      "Will": 2,
+      "Crea": 1,
+      "weight": 15,
+      "role": "melee",
+      "tags": ["rodent"]
+    },
+    {
+      "name": "Forest Troll",
+      "archetype": "giant",
+      "subtype": "troll",
+      "faction": "none",
+      "aggression": "mindless",
+      "environment": [
+        "forest",
+        "swamp"
+      ],
+      "CV": 18,
+      "tier": 3,
+      "Str": 18,
+      "Agi": 9,
+      "Vit": 18,
+      "Ins": 6,
+      "Will": 10,
+      "Crea": 5,
+      "weight": 1,
+      "role": "melee",
+      "tags": ["giant"]
+    },
+    {
+      "name": "Goblin Skirmisher",
+      "archetype": "humanoid",
+      "subtype": "goblin",
+      "faction": "goblin_tribe",
+      "aggression": "cowardly",
+      "environment": [
+        "forest",
+        "caves"
+      ],
+      "CV": 3,
+      "tier": 1,
+      "Str": 8,
+      "Agi": 10,
+      "Vit": 5,
+      "Ins": 4,
+      "Will": 5,
+      "Crea": 3,
+      "weight": 12,
+      "role": "melee",
+      "tags": ["goblin"]
+    },
+    {
+      "name": "Goblin Shaman",
+      "archetype": "humanoid",
+      "subtype": "goblin",
+      "faction": "goblin_tribe",
+      "aggression": "cowardly",
+      "environment": [
+        "forest",
+        "caves"
+      ],
+      "CV": 6,
+      "tier": 1,
+      "Str": 4,
+      "Agi": 8,
+      "Vit": 3,
+      "Ins": 10,
+      "Will": 13,
+      "Crea": 10,
+      "weight": 8,
+      "role": "ranged",
+      "tags": [
+        "goblin",
+        "magic"
+      ]
+    },
+    {
+      "name": "Goblin War Chief",
+      "archetype": "humanoid",
+      "subtype": "goblin",
+      "faction": "goblin_tribe",
+      "aggression": "brave",
+      "environment": [
+        "forest",
+        "caves"
+      ],
+      "CV": 8,
+      "tier": 1,
+      "Str": 12,
+      "Agi": 10,
+      "Vit": 10,
+      "Ins": 8,
+      "Will": 10,
+      "Crea": 9,
+      "weight": 2,
+      "role": "leader",
+      "tags": [
+        "goblin",
+        "leader"
+      ]
+    },
+    {
+      "name": "Gorilla",
+      "archetype": "beast",
+      "subtype": "ape",
+      "faction": "none",
+      "aggression": "brave",
+      "environment": ["forest"],
+      "CV": 10,
+      "tier": 2,
+      "Str": 18,
+      "Agi": 8,
+      "Vit": 16,
+      "Ins": 7,
+      "Will": 6,
+      "Crea": 7,
+      "weight": 5,
+      "role": "melee",
+      "tags": ["wild_animal"]
+    },
+    {
+      "name": "Bandit",
+      "archetype": "humanoid",
+      "subtype": "human",
+      "faction": "bandits",
+      "aggression": "cowardly",
+      "environment": [
+        "plains",
+        "slums",
+        "forest"
+      ],
+      "CV": 4,
+      "tier": 1,
+      "Str": 10,
+      "Agi": 10,
+      "Vit": 10,
+      "Ins": 7,
+      "Will": 6,
+      "Crea": 5,
+      "weight": 12,
+      "role": "melee",
+      "tags": ["criminal"]
+    },
+    {
+      "name": "Street Thug",
+      "archetype": "humanoid",
+      "subtype": "human",
+      "faction": "bandits",
+      "aggression": "cowardly",
+      "environment": [
+        "slums",
+        "plains"
+      ],
+      "CV": 3,
+      "tier": 1,
+      "Str": 8,
+      "Agi": 10,
+      "Vit": 11,
+      "Ins": 9,
+      "Will": 9,
+      "Crea": 8,
+      "weight": 10,
+      "role": "melee",
+      "tags": ["criminal"]
+    },
+    {
+      "name": "Pickpocket",
+      "archetype": "humanoid",
+      "subtype": "human",
+      "faction": "bandits",
+      "aggression": "cowardly",
+      "environment": [
+        "slums",
+        "market"
+      ],
+      "CV": 1,
+      "tier": 1,
+      "Str": 8,
+      "Agi": 14,
+      "Vit": 9,
+      "Ins": 11,
+      "Will": 10,
+      "Crea": 9,
+      "weight": 8,
+      "role": "melee",
+      "tags": ["criminal"]
+    },
+    {
+      "name": "Bandit Archer",
+      "archetype": "humanoid",
+      "subtype": "human",
+      "faction": "bandits",
+      "aggression": "cowardly",
+      "environment": [
+        "plains",
+        "slums",
+        "forest"
+      ],
+      "CV": 4,
+      "tier": 2,
+      "Str": 10,
+      "Agi": 12,
+      "Vit": 6,
+      "Ins": 7,
+      "Will": 5,
+      "Crea": 6,
+      "weight": 8,
+      "role": "ranged",
+      "tags": ["criminal"]
+    },
+    {
+      "name": "Dire Wolf",
+      "archetype": "beast",
+      "subtype": "canine",
+      "faction": "orc_warband",
+      "aggression": "brave",
+      "environment": [
+        "plains",
+        "mountains"
+      ],
+      "CV": 5,
+      "tier": 2,
+      "Str": 15,
+      "Agi": 13,
+      "Vit": 12,
+      "Ins": 4,
+      "Will": 9,
+      "Crea": 3,
+      "weight": 6,
+      "role": "melee",
+      "tags": [
+        "wild_animal",
+        "pet"
+      ]
+    },
+    {
+      "name": "Orc War Chief",
+      "archetype": "humanoid",
+      "subtype": "orc",
+      "faction": "orc_warband",
+      "aggression": "brave",
+      "environment": [
+        "plains",
+        "mountains"
+      ],
+      "CV": 8,
+      "tier": 2,
+      "Str": 15,
+      "Agi": 11,
+      "Vit": 15,
+      "Ins": 8,
+      "Will": 10,
+      "Crea": 7,
+      "weight": 6,
+      "role": "brute",
+      "tags": ["orc"]
+    },
+    {
+      "name": "Orc War Shaman",
+      "archetype": "humanoid",
+      "subtype": "orc",
+      "faction": "orc_warband",
+      "aggression": "brave",
+      "environment": [
+        "plains",
+        "mountains"
+      ],
+      "CV": 9,
+      "tier": 1,
+      "Str": 11,
+      "Agi": 10,
+      "Vit": 13,
+      "Ins": 12,
+      "Will": 14,
+      "Crea": 13,
+      "weight": 2,
+      "role": "ranged",
+      "tags": [
+        "orc",
+        "magic"
+      ]
+    },
+    {
+      "name": "Orc Skirmisher",
+      "archetype": "humanoid",
+      "subtype": "orc",
+      "faction": "orc_warband",
+      "aggression": "brave",
+      "environment": [
+        "plains",
+        "mountains"
+      ],
+      "CV": 5,
+      "tier": 1,
+      "Str": 14,
+      "Agi": 9,
+      "Vit": 14,
+      "Ins": 14,
+      "Will": 7,
+      "Crea": 11,
+      "weight": 9,
+      "role": "melee",
+      "tags": [
+        "orc"
+      ]
+    },
+    {
+      "name": "Orc Archer",
+      "archetype": "humanoid",
+      "subtype": "orc",
+      "faction": "city_guard",
+      "aggression": "brave",
+      "environment": [
+        "plains",
+        "mountains"
+      ],
+      "CV": 11,
+      "tier": 1,
+      "Str": 16,
+      "Agi": 11,
+      "Vit": 11,
+      "Ins": 8,
+      "Will": 17,
+      "Crea": 11,
+      "weight": 1,
+      "role": "ranged",
+      "tags": ["orc"]
+    },
+    {
+      "name": "Troll Archer",
+      "archetype": "humanoid",
+      "subtype": "troll",
+      "faction": "none",
+      "aggression": "mindless",
+      "environment": [
+        "forest",
+        "swamp"
+      ],
+      "CV": 16,
+      "tier": 1,
+      "Str": 15,
+      "Agi": 16,
+      "Vit": 16,
+      "Ins": 9,
+      "Will": 13,
+      "Crea": 11,
+      "weight": 8,
+      "role": "ranged",
+      "tags": [
+        "wild_animal",
+        "criminal",
+        "giant"
+      ]
+    },
+    {
+      "name": "Ghoul",
+      "archetype": "undead",
+      "subtype": "ghoul",
+      "faction": "cultists",
+      "aggression": "mindless",
+      "environment": [
+        "crypt",
+        "ruins"
+      ],
+      "CV": 7,
+      "tier": 2,
+      "Str": 13,
+      "Agi": 15,
+      "Vit": 12,
+      "Ins": 5,
+      "Will": 9,
+      "Crea": 4,
+      "weight": 6,
+      "role": "melee",
+      "tags": ["undead"]
+    },
+    {
+      "name": "Lich",
+      "archetype": "undead",
+      "subtype": "lich",
+      "faction": "none",
+      "aggression": "mindless",
+      "environment": [
+        "crypt",
+        "ruins"
+      ],
+      "CV": 20,
+      "tier": 4,
+      "Str": 12,
+      "Agi": 12,
+      "Vit": 18,
+      "Ins": 20,
+      "Will": 25,
+      "Crea": 20,
+      "weight": 1,
+      "role": "leader",
+      "tags": [
+        "undead",
+        "caster"
+      ]
+    },
+    {
+      "name": "Necromancer",
+      "archetype": "humanoid",
+      "subtype": "human",
+      "faction": "cultists",
+      "aggression": "cowardly",
+      "environment": [
+        "ruins",
+        "crypt"
+      ],
+      "CV": 10,
+      "tier": 3,
+      "Str": 8,
+      "Agi": 10,
+      "Vit": 11,
+      "Ins": 1,
+      "Will": 1,
+      "Crea": 1,
+      "weight": 1,
+      "role": "ranged",
+      "tags": ["caster"]
+    },
+    {
+      "name": "Skeleton Warrior",
+      "archetype": "undead",
+      "subtype": "skeleton",
+      "faction": "cultists",
+      "aggression": "mindless",
+      "environment": [
+        "crypt",
+        "ruins"
+      ],
+      "CV": 4,
+      "tier": 1,
+      "Str": 12,
+      "Agi": 9,
+      "Vit": 12,
+      "Ins": 1,
+      "Will": 1,
+      "Crea": 1,
+      "weight": 8,
+      "role": "melee",
+      "tags": ["undead"]
+    },
+    {
+      "name": "Wraith",
+      "archetype": "undead",
+      "subtype": "wraith",
+      "faction": "cultists",
+      "aggression": "mindless",
+      "environment": [
+        "crypt",
+        "ruins"
+      ],
+      "CV": 11,
+      "tier": 3,
+      "Str": 9,
+      "Agi": 12,
+      "Vit": 8,
+      "Ins": 1,
+      "Will": 1,
+      "Crea": 1,
+      "weight": 7,
+      "role": "melee",
+      "tags": ["undead"]
+    },
+    {
+      "name": "Zombie",
+      "archetype": "undead",
+      "subtype": "zombie",
+      "faction": "cultists",
+      "aggression": "mindless",
+      "environment": [
+        "crypt",
+        "ruins"
+      ],
+      "CV": 4,
+      "tier": 1,
+      "Str": 13,
+      "Agi": 6,
+      "Vit": 13,
+      "Ins": 1,
+      "Will": 1,
+      "Crea": 1,
+      "weight": 4,
+      "role": "melee",
+      "tags": ["undead"]
+    }
+  ]
+}

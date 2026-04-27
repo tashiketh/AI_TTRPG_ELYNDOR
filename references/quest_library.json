@@ -1,0 +1,285 @@
+{
+  "quest_library": {
+    "difficulty_tiers": {
+      "trivial": {
+        "dc_range": [10, 20],
+        "base_rewards": {
+          "gold": [10, 50],
+          "reputation": [1, 3],
+          "experience": "minimal"
+        },
+        "description": "Very simple tasks with minimal risk",
+        "examples": ["Deliver a message across town", "Gather common herbs", "Find a lost pet"]
+      },
+      "easy": {
+        "dc_range": [21, 35],
+        "base_rewards": {
+          "gold": [50, 200],
+          "reputation": [3, 5],
+          "experience": "small"
+        },
+        "description": "Simple tasks with minor challenges",
+        "examples": ["Escort a merchant to nearby town", "Hunt small game", "Clear minor bandit camp"]
+      },
+      "moderate": {
+        "dc_range": [36, 60],
+        "base_rewards": {
+          "gold": [200, 800],
+          "reputation": [5, 10],
+          "experience": "moderate"
+        },
+        "description": "Challenging tasks with significant risk",
+        "examples": ["Eliminate a bandit leader", "Retrieve rare components", "Investigate mysterious ruins"]
+      },
+      "challenging": {
+        "dc_range": [61, 85],
+        "base_rewards": {
+          "gold": [800, 3000],
+          "reputation": [10, 20],
+          "experience": "large"
+        },
+        "description": "Dangerous tasks requiring preparation",
+        "examples": ["Defeat a powerful monster", "Infiltrate enemy fortress", "Rescue important hostage"]
+      },
+      "epic": {
+        "dc_range": [86, 100],
+        "base_rewards": {
+          "gold": [3000, 10000],
+          "reputation": [20, 50],
+          "experience": "massive"
+        },
+        "description": "Legendary tasks with world-changing consequences",
+        "examples": ["Defeat an ancient dragon", "Recover lost artifact of power", "Overthrow corrupt kingdom"]
+      }
+    },
+    "environment_modifiers": {
+      "wilderness": {
+        "difficulty_adjustment": 5,
+        "reward_adjustment": 1.1,
+        "common_encounters": ["wild animals", "bandits", "natural hazards"],
+        "description": "Open areas with unpredictable weather and terrain"
+      },
+      "forest": {
+        "difficulty_adjustment": 10,
+        "reward_adjustment": 1.2,
+        "common_encounters": ["monsters", "hidden dangers", "rare resources"],
+        "description": "Dense vegetation providing cover but also hiding threats"
+      },
+      "dungeon": {
+        "difficulty_adjustment": 15,
+        "reward_adjustment": 1.5,
+        "common_encounters": ["traps", "powerful monsters", "valuable treasures"],
+        "description": "Confined spaces with heightened danger and rewards"
+      },
+      "city": {
+        "difficulty_adjustment": -5,
+        "reward_adjustment": 0.9,
+        "common_encounters": ["criminals", "social challenges", "information networks"],
+        "description": "Civilized areas with legal consequences and social complexities"
+      },
+      "mountains": {
+        "difficulty_adjustment": 20,
+        "reward_adjustment": 1.8,
+        "common_encounters": ["harsh weather", "rare minerals", "dangerous creatures"],
+        "description": "Treacherous terrain with extreme conditions and valuable resources"
+      },
+      "ocean": {
+        "difficulty_adjustment": 25,
+        "reward_adjustment": 2.0,
+        "common_encounters": ["sea monsters", "pirates", "shipwrecks"],
+        "description": "Unpredictable waters with unique challenges and rewards"
+      }
+    },
+    "quest_type_standards": {
+      "fetch_quest": {
+        "base_difficulty": "easy",
+        "typical_duration": "1-4 hours",
+        "common_rewards": ["gold", "items", "reputation"],
+        "skill_focus": ["survival", "investigation", "navigation"]
+      },
+      "hunt_quest": {
+        "base_difficulty": "moderate",
+        "typical_duration": "2-6 hours",
+        "common_rewards": ["gold", "trophies", "crafting materials", "reputation"],
+        "skill_focus": ["combat", "tracking", "stealth"]
+      },
+      "delivery_quest": {
+        "base_difficulty": "easy",
+        "typical_duration": "1-3 hours",
+        "common_rewards": ["gold", "reputation", "favors"],
+        "skill_focus": ["navigation", "stealth", "communication"]
+      },
+      "escort_quest": {
+        "base_difficulty": "moderate",
+        "typical_duration": "3-8 hours",
+        "common_rewards": ["gold", "reputation", "allies"],
+        "skill_focus": ["combat", "tactics", "communication"]
+      },
+      "research_quest": {
+        "base_difficulty": "moderate",
+        "typical_duration": "4-12 hours",
+        "common_rewards": ["knowledge", "reputation", "unique items"],
+        "skill_focus": ["research", "investigation", "communication"]
+      },
+      "crafting_quest": {
+        "base_difficulty": "challenging",
+        "typical_duration": "6-24 hours",
+        "common_rewards": ["gold", "rare materials", "reputation", "unique recipes"],
+        "skill_focus": ["crafting skills", "resource gathering", "negotiation"]
+      },
+      "random_encounter": {
+        "base_difficulty": "varies",
+        "typical_duration": "30 minutes - 2 hours",
+        "common_rewards": ["experience", "scavenged items", "survival skills"],
+        "skill_focus": ["combat", "survival", "adaptability"]
+      },
+      "monster_attack": {
+        "base_difficulty": "moderate",
+        "typical_duration": "1-3 hours",
+        "common_rewards": ["combat experience", "monster parts", "survival skills"],
+        "skill_focus": ["combat", "tactics", "first aid"]
+      },
+      "natural_hazard": {
+        "base_difficulty": "challenging",
+        "typical_duration": "2-5 hours",
+        "common_rewards": ["survival experience", "rare resources", "resilience"],
+        "skill_focus": ["survival", "problem solving", "endurance"]
+      }
+    },
+    "reward_scaling_formulas": {
+      "gold": {
+        "formula": "base_gold * difficulty_multiplier * environment_multiplier * (1 + (player_level / 10))",
+        "description": "Gold rewards scale with difficulty, environment, and player level"
+      },
+      "reputation": {
+        "formula": "base_reputation * difficulty_multiplier * (1 + (quest_importance / 5))",
+        "description": "Reputation gains increase with difficulty and quest significance"
+      },
+      "experience": {
+        "formula": "base_xp * difficulty_multiplier * (1 + (skills_used / 5))",
+        "description": "Experience scales with difficulty and number of skills utilized"
+      },
+      "item_quality": {
+        "formula": "min(5, max(1, difficulty_multiplier * environment_multiplier))",
+        "description": "Determines quality tier of rewarded items (1-5)"
+      }
+    },
+    "difficulty_calculations": {
+      "combat_encounters": {
+        "formula": "50 + (enemy_CV * 2) + (enemy_count * 5) - (party_size * 3)",
+        "factors": {
+          "enemy_CV": "Combat Value of primary enemies",
+          "enemy_count": "Number of enemies",
+          "party_size": "Number of player allies"
+        }
+      },
+      "social_interactions": {
+        "formula": "50 + (target_importance * 10) + (request_difficulty * 15) - (relationship_bonus * 5)",
+        "factors": {
+          "target_importance": "Status/importance of NPC (1-5)",
+          "request_difficulty": "How unreasonable the request is (1-5)",
+          "relationship_bonus": "Current relationship level bonus"
+        }
+      },
+      "skill_challenges": {
+        "formula": "50 + (skill_complexity * 10) + (time_pressure * 5) - (tool_quality * 3)",
+        "factors": {
+          "skill_complexity": "Complexity of task (1-5)",
+          "time_pressure": "Urgent deadline (0-10)",
+          "tool_quality": "Quality of available tools (1-5)"
+        }
+      },
+      "exploration_challenges": {
+        "formula": "50 + (environment_danger * 15) + (distance * 2) - (preparation * 5)",
+        "factors": {
+          "environment_danger": "Hostility of environment (1-5)",
+          "distance": "Distance to travel/cover (in km)",
+          "preparation": "Level of preparation (0-10)"
+        }
+      }
+    },
+    "quest_generation_guidelines": {
+      "balancing_principles": [
+        "Quest difficulty should match player capabilities with some challenge",
+        "Rewards should feel meaningful but not game-breaking",
+        "Environment should enhance the quest theme",
+        "Time requirements should be reasonable for the difficulty",
+        "Failures should have consequences but not be punitive"
+      ],
+      "progression_arcs": {
+        "beginner": {
+          "duration": "1-5 sessions",
+          "focus": "Learning mechanics, local area, basic skills",
+          "reward_focus": "Immediate needs, skill improvement"
+        },
+        "intermediate": {
+          "duration": "3-10 sessions",
+          "focus": "Regional exploration, reputation building",
+          "reward_focus": "Equipment upgrades, allies, information"
+        },
+        "advanced": {
+          "duration": "5-20 sessions",
+          "focus": "Major story arcs, world impact",
+          "reward_focus": "Unique items, land/property, titles"
+        },
+        "epic": {
+          "duration": "10-50 sessions",
+          "focus": "World-changing events, legendary status",
+          "reward_focus": "Artifacts, kingdoms, immortal fame"
+        }
+      }
+    }
+  },
+  "example_quests": {
+    "beginner_fetch": {
+      "title": "Herbs for the Apothecary",
+      "category": "assignment",
+      "type": "fetch_quest",
+      "difficulty": "trivial",
+      "environment": "wilderness",
+      "description": "The local apothecary needs common healing herbs from the nearby meadow.",
+      "objectives": ["Find 5 bundles of healing herbs", "Return to the apothecary"],
+      "rewards": {
+        "gold": 50,
+        "reputation": 2,
+        "experience": "small"
+      },
+      "calculated_dc": 18,
+      "estimated_duration": "2 hours"
+    },
+    "intermediate_hunt": {
+      "title": "Wolf Pack Culling",
+      "category": "assignment",
+      "type": "hunt_quest",
+      "difficulty": "moderate",
+      "environment": "forest",
+      "description": "A pack of wolves has been attacking travelers on the forest road. The mayor offers a bounty for their elimination.",
+      "objectives": ["Track down the wolf pack", "Eliminate the alpha wolf", "Bring back 3 wolf pelts as proof"],
+      "rewards": {
+        "gold": 500,
+        "reputation": 8,
+        "items": ["wolf pelt cloak"],
+        "experience": "moderate"
+      },
+      "calculated_dc": 45,
+      "estimated_duration": "4 hours"
+    },
+    "advanced_research": {
+      "title": "Ancient Ruins Exploration",
+      "category": "assignment",
+      "type": "research_quest",
+      "difficulty": "challenging",
+      "environment": "dungeon",
+      "description": "A scholar needs information about the ancient civilization that built the ruins in the Blackthorn Mountains.",
+      "objectives": ["Navigate to the ruins safely", "Document 5 major findings", "Retrieve any intact artifacts", "Return with research notes"],
+      "rewards": {
+        "gold": 2000,
+        "reputation": 15,
+        "items": ["ancient artifact", "scholar's recommendation letter"],
+        "experience": "large"
+      },
+      "calculated_dc": 72,
+      "estimated_duration": "8-12 hours"
+    }
+  }
+}

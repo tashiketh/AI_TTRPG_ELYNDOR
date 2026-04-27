@@ -1,0 +1,55 @@
+{
+    "fire_dart": {
+        "name": "Fire Dart",
+        "base_mp_cost": 200,
+        "complexity": 3,
+        "tags": [
+            "attack",
+            "piercing",
+            "fire"
+        ],
+        "range": [
+            1,
+            15,
+            20
+        ],
+        "damage": 100,
+        "description": "Red glowing dart...",
+        "public": true
+    },
+    "sleep": {
+        "name": "Sleep",
+        "base_mp_cost": 350,
+        "complexity": 5,
+        "tags": [
+            "mental"
+        ],
+        "range": 10,
+        "description": "Overlaps exhaustion...",
+        "source": "enemy"
+    },
+    "fireball": {
+        "name": "fireball",
+        "base_mp_cost": 1000,
+        "complexity": 4,
+        "tags": [
+            "range",
+            "area_of_effect",
+            "fire",
+            "explosion"
+        ],
+        "range": 20,
+        "radius": 2,
+        "description": "A ball of fire shoots from the players hand, shoots to the target, and explodes",
+        "has_damage": true,
+        "damage": 1300.0,
+        "MP_cost": 1264.0,
+        "scalable": true,
+        "attack": {
+            "stats": [
+                "Crea"
+            ],
+            "skill": "spellcasting"
+        }
+    }
+}

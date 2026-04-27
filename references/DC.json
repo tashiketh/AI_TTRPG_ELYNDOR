@@ -1,0 +1,50 @@
+[
+  {
+    "DC":15,
+    "Difficulty":"Trivial",
+    "Social_calc_Examples":"Merchant sells intended product to anyone, 'hand me that nearby tool', 'step aside for a moment'",
+    "athletics_calc_examples":"Walk across flat surface"
+  },
+  {
+    "DC":25,
+    "Difficulty":"Very Easy",
+    "Social_calc_Examples":"Move aside; share basic directions; casual small talk; buy uncommon goods",
+    "athletics_calc_examples":"Jump over a low fence"
+  },
+  {
+    "DC":35,
+    "Difficulty":"Easy",
+    "Social_calc_Examples":"Ask for a favor from acquaintance; negotiate minor discount; share non-sensitive info",
+    "athletics_calc_examples":"Dodge a slow moving item, such as a thrown apple"
+  },
+  {
+    "DC":50,
+    "Difficulty":"Neutral",
+    "Social_calc_Examples":"Standard trade; request moderate help from neutral NPC",
+    "athletics_calc_examples":"Climb a 2-meter wall with handholds"
+  },
+  {
+    "DC":60,
+    "Difficulty":"Difficult",
+    "Social_calc_Examples":"Ask for a significant personal favor; request that causes embarassment to NPC",
+    "athletics_calc_examples":"Dodge an arrow \/ Balance on a narrow beam"
+  },
+  {
+    "DC":65,
+    "Difficulty":"Very Difficult",
+    "Social_calc_Examples":"Convince to betray ally; risk life for you; reveal guarded secret",
+    "athletics_calc_examples":"Balance on a tightrope in wind \/ Climb a 10-meter overhang"
+  },
+  {
+    "DC":80,
+    "Difficulty":"Improbable",
+    "Social_calc_Examples":"Convince enemy to defect; give up valuable item for free; fight for you against overwhelming odds",
+    "athletics_calc_examples":"Scale a 15-meter sheer cliff \/ Swim upstream in rapids \/ Jump a 8\u201310 meter gap"
+  },
+  {
+    "DC":100,
+    "Difficulty":"Impossible",
+    "Social_calc_Examples":"Hold off an army alone; betray entire faction for a stranger; change fundamental alignment",
+    "athletics_calc_examples":"Sommersault over ten foot wall \/ Scale a 30-meter vertical wall with no holds"
+  }
+]

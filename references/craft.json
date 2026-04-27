@@ -1,0 +1,683 @@
+{
+  "craft": {
+    "materials": {
+      "brass": {
+        "AC_adjust": 0.75,
+        "damage_adjust": 0.75,
+        "dc_adjust": -5,
+        "notes": "“commonly available”",
+        "price_adjust": 0.5,
+        "speed_adjust": 1.2,
+        "weight_adjust": 0.8
+      },
+      "copper": {
+        "AC_adjust": 0.5,
+        "damage_adjust": 0.5,
+        "dc_adjust": -5,
+        "notes": "“commonly available”",
+        "price_adjust": 0.25,
+        "speed_adjust": 1,
+        "weight_adjust": 1.25
+      },
+      "iron": {
+        "AC_adjust": 1,
+        "damage_adjust": 1,
+        "dc_adjust": 0,
+        "notes": "“commonly available”",
+        "price_adjust": 1,
+        "speed_adjust": 1,
+        "weight_adjust": 1
+      },
+      "makeshift": {
+        "AC_adjust": 0.2,
+        "damage_adjust": 0.5,
+        "dc_adjust": -10,
+        "notes": "“rock, bone, etc.”",
+        "price_adjust": 0.1,
+        "speed_adjust": 1.25,
+        "weight_adjust": 1
+      },
+      "mythril": {
+        "AC_adjust": 2,
+        "damage_adjust": 1.3,
+        "dc_adjust": 30,
+        "notes": "“rarely available in elven mines”",
+        "price_adjust": 20,
+        "speed_adjust": 0.75,
+        "weight_adjust": 0.75
+      },
+      "orachilum": {
+        "AC_adjust": 2,
+        "damage_adjust": 2,
+        "dc_adjust": 30,
+        "notes": "“rarely available in dwarven mines”",
+        "price_adjust": 20,
+        "speed_adjust": 1,
+        "weight_adjust": 1
+      },
+      "steel": {
+        "AC_adjust": 1.2,
+        "damage_adjust": 1.2,
+        "dc_adjust": 10,
+        "notes": "“commonly available”",
+        "price_adjust": 2,
+        "speed_adjust": 1,
+        "weight_adjust": 0.9
+      },
+      "titanium": {
+        "AC_adjust": 1.4,
+        "damage_adjust": 1.5,
+        "dc_adjust": 20,
+        "notes": "“rarely available in human mines”",
+        "price_adjust": 5,
+        "speed_adjust": 1,
+        "weight_adjust": 1
+      }
+    },
+    "quality": {
+      "botched": {
+        "AC_adjust": 0.5,
+        "damage_adjust": 0.5,
+        "price_adjust": 0.1,
+        "speed_adjust": 1.25
+      },
+      "fine": {
+        "AC_adjust": 1.15,
+        "damage_adjust": 1.2,
+        "price_adjust": 1.5,
+        "speed_adjust": 1
+      },
+      "masterwork": {
+        "AC_adjust": 1.25,
+        "damage_adjust": 1.5,
+        "price_adjust": 3,
+        "speed_adjust": 0.9
+      },
+      "poor": {
+        "AC_adjust": 0.75,
+        "damage_adjust": 0.75,
+        "price_adjust": 0.5,
+        "speed_adjust": 1.1
+      },
+      "standard": {
+        "AC_adjust": 1,
+        "damage_adjust": 1,
+        "price_adjust": 1,
+        "speed_adjust": 1
+      }
+    }
+  },
+  "items": {
+    "apple": {
+      "archetype": "apple",
+      "description": "single piece of fruit, apple or otherwise",
+      "price": 1,
+      "tags": [
+        "supply",
+        "food"
+      ],
+      "weight": 0.1
+    },
+    "arrow": {
+      "archetype": "arrow",
+      "damage": 1,
+      "description": "",
+      "location": null,
+      "price": 5,
+      "tags": [
+        "ammunition",
+        "arrow",
+        "bow"
+      ],
+      "weight": 0.05
+    },
+    "axe": {
+      "archetype": "axe",
+      "damage": 20,
+      "description": "",
+      "location": null,
+      "price": 1800,
+      "range": 0.6,
+      "speed": 2,
+      "tags": [
+        "weapon",
+        "melee",
+        "edged",
+        "blunt"
+      ],
+      "weight": 2.5
+    },
+    "backpack": {
+      "archetype": "backpack",
+      "capacity": 15,
+      "contents": [],
+      "description": "medium comfortable cloth container",
+      "price": 50,
+      "tags": [
+        "utility",
+        "container"
+      ],
+      "weight": 2
+    },
+    "bag": {
+      "archetype": "bag",
+      "capacity": 5,
+      "contents": [],
+      "description": "small bag worn on a shoulder strap",
+      "price": 10,
+      "tags": [
+        "utility",
+        "container"
+      ],
+      "weight": 1.5
+    },
+    "bandage": {
+      "archetype": "bandage",
+      "description": "+20 to attempts to stop bleeding",
+      "location": null,
+      "price": 10,
+      "tags": [
+        "medicine"
+      ],
+      "weight": 0.1
+    },
+    "basic stirrup crossbow": {
+      "archetype": "basic stirrup crossbow",
+      "damage": 30,
+      "description": "",
+      "location": null,
+      "price": 40000,
+      "range": [
+        5,
+        40,
+        200
+      ],
+      "speed": 10,
+      "tags": [
+        "weapon",
+        "ranged",
+        "piercing"
+      ],
+      "weight": 3.5
+    },
+    "basic winch crossbow": {
+      "archetype": "basic winch crossbow",
+      "damage": 50,
+      "description": "",
+      "location": null,
+      "price": 300000,
+      "range": [
+        5,
+        100,
+        400
+      ],
+      "speed": 30,
+      "tags": [
+        "weapon",
+        "ranged",
+        "piercing"
+      ],
+      "weight": 4
+    },
+    "battle axe": {
+      "archetype": "battle axe",
+      "damage": 25,
+      "description": "",
+      "location": null,
+      "price": 4000,
+      "range": 0.8,
+      "speed": 2.5,
+      "tags": [
+        "weapon",
+        "melee",
+        "edged",
+        "piercing"
+      ],
+      "weight": 3
+    },
+    "bed roll": {
+      "archetype": "bed roll",
+      "description": "simple 2m by 0.5m bed roll for one person to rest comfortably",
+      "price": 250,
+      "tags": [
+        "cloth",
+        "bed"
+      ],
+      "weight": 1.5
+    },
+    "bolt": {
+      "archetype": "bolt",
+      "damage": 1,
+      "description": "",
+      "location": null,
+      "price": 7,
+      "tags": [
+        "ammunition",
+        "bolt",
+        "crossbow"
+      ],
+      "weight": 0.05
+    },
+    "book": {
+      "archetype": "book",
+      "description": "description of the contents",
+      "price": 10,
+      "tags": [
+        "utility"
+      ],
+      "weight": 0.5
+    },
+    "breastplate": {
+      "archetype": "breastplate",
+      "base_armor": 15,
+      "description": "",
+      "location": null,
+      "price": 150000,
+      "tags": [
+        "armor",
+        "medium"
+      ],
+      "weight": 3
+    },
+    "buckler": {
+      "archetype": "buckler",
+      "damage": 2.5,
+      "description": "",
+      "location": null,
+      "price": 800,
+      "speed": 1,
+      "tags": [
+        "shield",
+        "small",
+        "blunt"
+      ],
+      "weight": 1
+    },
+    "camp kit": {
+      "archetype": "camp Kit",
+      "description": "Supplies needed to set up camp: a crude pan, plate, utensils",
+      "price": 250,
+      "tags": [
+        "utility"
+      ],
+      "weight": 1.5
+    },
+    "clothing": {
+      "archetype": "Clothing",
+      "description": "visual description of clothing",
+      "location": null,
+      "price": 20,
+      "tags": [
+        "clothing",
+        "cloth"
+      ],
+      "weight": 1.2
+    },
+    "dagger": {
+      "archetype": "dagger",
+      "damage": 10,
+      "description": "",
+      "location": null,
+      "price": 100,
+      "range": 0.3,
+      "speed": 1,
+      "tags": [
+        "weapon",
+        "melee",
+        "edged"
+      ],
+      "weight": 0.4
+    },
+    "full leather": {
+      "archetype": "full leather",
+      "base_armor": 10,
+      "description": "",
+      "location": null,
+      "price": 50000,
+      "tags": [
+        "armor",
+        "light"
+      ],
+      "weight": 5
+    },
+    "full meal": {
+      "archetype": "full meal",
+      "description": "One full meal can satisfy one person for one day",
+      "location": null,
+      "price": 20,
+      "tags": [
+        "food",
+        "service"
+      ],
+      "weight": 0.5
+    },
+    "full plate": {
+      "archetype": "full plate",
+      "base_armor": 30,
+      "description": "",
+      "location": null,
+      "price": 5000000,
+      "tags": [
+        "armor",
+        "heavy"
+      ],
+      "weight": 20
+    },
+    "herb bundle": {
+      "archetype": "herb bundle",
+      "description": "",
+      "location": null,
+      "price": 5,
+      "tags": [
+        "supply",
+        "medicine",
+        "raw"
+      ],
+      "weight": 0.1
+    },
+    "inn room": {
+      "description": "common room",
+      "price": 100,
+      "tags": [
+        "services",
+        "rest"
+      ]
+    },
+    "kite shield": {
+      "archetype": "kite shield",
+      "damage": 5,
+      "description": "",
+      "location": null,
+      "price": 2000,
+      "speed": 2,
+      "tags": [
+        "shield",
+        "medium",
+        "blunt"
+      ],
+      "weight": 2.5
+    },
+    "leather breastplate": {
+      "archetype": "leather breastplate",
+      "base_armor": 5,
+      "description": "",
+      "location": null,
+      "price": 10000,
+      "tags": [
+        "armor",
+        "light"
+      ],
+      "weight": 1.5
+    },
+    "leather torso": {
+      "archetype": "leather torso",
+      "base_armor": 7,
+      "description": "",
+      "location": null,
+      "price": 20000,
+      "tags": [
+        "armor",
+        "light"
+      ],
+      "weight": 2
+    },
+    "leather with metal reinforcement": {
+      "archetype": "leather with metal reinforcement",
+      "base_armor": 12,
+      "description": "",
+      "location": null,
+      "price": 100000,
+      "tags": [
+        "armor",
+        "medium"
+      ],
+      "weight": 5
+    },
+    "longbow": {
+      "archetype": "longbow",
+      "damage": 20,
+      "description": "",
+      "location": null,
+      "price": 30000,
+      "range": [
+        5,
+        100,
+        250
+      ],
+      "speed": 8,
+      "tags": [
+        "weapon",
+        "ranged",
+        "piercing"
+      ],
+      "weight": 1.2
+    },
+    "luxury room": {
+      "description": "luxurious and impressive room",
+      "price": 10000,
+      "tags": [
+        "services",
+        "rest"
+      ]
+    },
+    "polearm": {
+      "archetype": "polearm",
+      "damage": 25,
+      "description": "",
+      "location": null,
+      "price": 800,
+      "range": 1,
+      "speed": 2,
+      "tags": [
+        "weapon",
+        "melee",
+        "edged",
+        "blunt"
+      ],
+      "weight": 1.5
+    },
+    "potion small": {
+      "archetype": "potion small",
+      "description": "Heals 10% base HP",
+      "location": null,
+      "price": 10000,
+      "tags": [
+        "supply",
+        "medicine",
+        "potion"
+      ],
+      "weight": 0.2
+    },
+    "poultice": {
+      "archetype": "poultice",
+      "description": "accelerates natural healing by 1.5x",
+      "location": null,
+      "price": 10,
+      "tags": [
+        "medicine"
+      ],
+      "weight": 0.1
+    },
+    "quarterstaff": {
+      "archetype": "quarterstaff",
+      "damage": 10,
+      "description": "",
+      "location": null,
+      "price": 500,
+      "range": 1,
+      "speed": 1,
+      "tags": [
+        "weapon",
+        "melee",
+        "blunt"
+      ],
+      "weight": 1.8
+    },
+    "quiver": {
+      "archetype": "quiver",
+      "capacity": 1,
+      "contents": [],
+      "description": "plain container for arrows or bolts",
+      "price": 500,
+      "restriction": "ammunition",
+      "tags": [
+        "quiver",
+        "container",
+        "ammunition"
+      ]
+    },
+    "rations": {
+      "archetype": "rations",
+      "description": "tasteless but filling, one unit will feed a person for one day.",
+      "location": null,
+      "price": 40,
+      "tags": [
+        "supply",
+        "food"
+      ],
+      "weight": 0.1
+    },
+    "rope": {
+      "archetype": "rope",
+      "description": "medium weight hemp rope.",
+      "location": null,
+      "price": 20,
+      "tage": [
+        "utility",
+        "tool"
+      ],
+      "weight": 5
+    },
+    "scabbard": {
+      "archetype": "scabbard",
+      "capacity": 5,
+      "contents": [],
+      "description": "a standard case for an edged weapon",
+      "price": 500,
+      "restriction": "edged",
+      "tags": [
+        "container",
+        "edged"
+      ]
+    },
+    "scale mail": {
+      "archetype": "scale mail",
+      "base_armor": 18,
+      "description": "",
+      "location": null,
+      "price": 200000,
+      "tags": [
+        "armor",
+        "medium"
+      ],
+      "weight": 6
+    },
+    "short bow": {
+      "archetype": "short bow",
+      "damage": 10,
+      "description": "",
+      "location": null,
+      "price": 4000,
+      "range": [
+        2,
+        10,
+        25
+      ],
+      "speed": 4,
+      "tags": [
+        "weapon",
+        "ranged",
+        "piercing"
+      ],
+      "weight": 1
+    },
+    "spear": {
+      "archetype": "spear",
+      "damage": 15,
+      "description": "",
+      "location": null,
+      "price": 800,
+      "range": 1.8,
+      "speed": 4,
+      "tags": [
+        "weapon",
+        "melee",
+        "edged",
+        "piercing"
+      ],
+      "weight": 1.5
+    },
+    "sword": {
+      "archetype": "sword",
+      "damage": 20,
+      "description": "",
+      "location": null,
+      "price": 2000,
+      "range": 0.6,
+      "speed": 2,
+      "tags": [
+        "weapon",
+        "melee",
+        "edged"
+      ],
+      "weight": 1.3
+    },
+    "tent": {
+      "archetype": "Tent",
+      "condition_notes": "Describe how large a sleeping area is included, such as 2.2m by 1m",
+      "price": 50,
+      "quality": "standard",
+      "tags": [],
+      "weight": 1.5
+    },
+    "tinderbox": {
+      "archetype": "tinderbox",
+      "description": "A simple firestarting kit",
+      "price": 5,
+      "tags": [
+        "utility",
+        "fire"
+      ],
+      "weight": 0.5
+    },
+    "tower shield": {
+      "archetype": "tower shield",
+      "damage": 20,
+      "description": "",
+      "location": null,
+      "price": 1000000,
+      "speed": 4,
+      "tags": [
+        "shield",
+        "large",
+        "blunt"
+      ],
+      "weight": 15
+    },
+    "travel pack": {
+      "archetype": "travel pack",
+      "capacity": 50,
+      "contents": [],
+      "description": "large and unwieldy cloth container",
+      "price": 20,
+      "tags": [
+        "utility",
+        "container"
+      ],
+      "weight": 5
+    },
+    "waterskin": {
+      "archetype": "waterskin",
+      "description": "container for fluids",
+      "location": null,
+      "tags": [
+        "tool"
+      ]
+    }
+  },
+  "schema_version": "1.0",
+  "source_files": {
+    "craft": "craft.json",
+    "items": "items.json"
+  }
+}

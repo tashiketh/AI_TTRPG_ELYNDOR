@@ -1,0 +1,66 @@
+1. Core Premise
+The world of Elyndor is a harsh, grounded dark-fantasy setting where magic is dangerous, real, and personal. Mana is a finite personal resource that must be carefully managed. Technology is medieval at best, though dwarven machining has introduced limited advancements in metallurgy and engineering. Slavery is legal and common. Political intrigue, guild rivalries, and ancient grudges simmer beneath the surface.
+Humans are the dominant species across the continent, not because of superior strength or magic, but by sheer population size and adaptability. They control most major kingdoms, trade routes, and cities.
+Eighteen months ago, a catastrophic dimensional rift tore open in the northern territories. From it poured the Demons — an aggressive, hierarchical invasion force. With the help of elven archmagi, the humans managed to seal the rift after a brutal year-long war. However, scattered demon warbands and scouts still roam the northern borderlands, and the scars of the invasion remain fresh.
+The tone is gritty, consequential, and simulationist. Actions have lasting ripple effects. Full RP is expected. Magic experimentation, clever tactics, and long-term planning are rewarded.
+
+2. World Overview
+
+Calendar: Dynastic Year 105 of the current human royal lineage (House Vaelor).
+Primary Region: River Marches — a fertile human kingdom of rolling ridges, wide rivers, dense forests, and scattered settlements. Trade flows along the great river; the capital lies far to the south.
+Major Powers:
+Human Kingdom (bureaucratic, slavery-legal, focused on river trade and border defense)
+Adventurers’ Guild (semi-independent mercenary network handling monster threats and border skirmishes)
+Elven Enclaves (reclusive, powerful archmagi who helped seal the rift)
+Dwarven Holds (mountain-dwelling allies valued for advanced machining and metallurgy)
+
+Magic System: Spells are built from tags (fire, piercing, mental, area_of_effect, etc.). Each spell has complexity, base MP cost, and scaling rules. Research and invention are possible but carry risk.
+
+
+3. The Demon Invasion (Year 104–105)
+Eighteen months ago a massive dimensional rift ripped open in the far north. Demons poured through in two distinct varieties:
+Demon Physiology (both varieties):
+
+Digitigrade legs (reverse-jointed, animal-like)
+Significantly taller than humans on average (2.2–3+ meters)
+Tough, leathery or scaled skin
+Superior night vision and natural aggression
+
+Two Distinct Varieties:
+
+Standard / Low-Caste Demons (most common)
+Four arms (two primary, two secondary)
+Brutish, heavily built warriors, scouts, and raiders
+
+Demon Nobles / High-Caste (rare, commanding)
+Two arms
+Large, bat-like or membranous wings capable of limited flight/gliding
+More intelligent, often spellcasters or leaders
+
+
+The invasion lasted roughly one year. Humans, with critical assistance from elven archmagi, succeeded in sealing the rift in late Year 104. While the main demonic army was cut off, many warbands and scouts remain active in the northern territories. The war left deep scars — ruined villages, displaced refugees, and lingering demon-tainted lands.
+
+4. Key Factions & Races
+Humans
+Dominant by population. Control the River Marches and most major trade. Pragmatic, expansionist, and bureaucratic. Slavery is fully legal and widely practiced.
+Elves
+Reclusive and magically gifted. Provided the ritual knowledge and power necessary to seal the rift. Maintain cool but functional diplomatic relations with humans.
+Dwarves
+Valued allies who supply relatively advanced machining, metallurgy, and engineering expertise. Generally reclusive but trade heavily with humans.
+Beastkin (split into two distinct subtypes)
+Once valued across the River Marches for their exceptional hunting, tracking, and wilderness survival skills. During the early days of the invasion, the beastkin formed a short-lived alliance with the demons — a decision that led to their near-total fall from grace as the demons soon betrayed and began enslaving them.
+
+True Beastkin
+More animalistic builds (stronger feral features, digitigrade legs, pronounced muzzles, heavier fur/hide, sometimes partial transformation). Seen as the “pure” or wilder strain.
+Nekkos
+Appear mostly human with distinct animal features (smooth skin, animal-like ears, tails, pupils, nails, and teeth). Often viewed as “half-breeds” among beastkin.
+
+Current Status:
+Outside beastkin lands, both subtypes are treated with deep suspicion and are frequently enslaved when encountered in human settlements. In their own isolated territories, nekkos are considered second-class citizens by true beastkin.
+
+5. Key Locations (River Marches)
+
+Daejon: Regional hub and major Adventurers’ Guild outpost (recently departed).
+River Road: Main north-south trade artery.
+Haversford: Small fortified town roughly one day’s travel north — likely next major stop.
+Northern Territories: Active demon remnant zone and former rift location (now sealed).

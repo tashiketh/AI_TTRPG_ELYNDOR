@@ -1,0 +1,287 @@
+{
+  "spell_library": {
+    "fire_dart": {
+      "name": "Fire Dart",
+      "base_mp_cost": 200,
+      "complexity": 3,
+      "tags": [
+        "attack",
+        "piercing",
+        "fire"
+      ],
+      "range": [
+        1,
+        15,
+        20
+      ],
+      "damage": 100,
+      "description": "Red glowing dart...",
+      "public": true
+    },
+    "sleep": {
+      "name": "Sleep",
+      "base_mp_cost": 350,
+      "complexity": 5,
+      "tags": [
+        "mental"
+      ],
+      "range": 10,
+      "description": "Overlaps exhaustion...",
+      "source": "enemy"
+    },
+    "fireball": {
+      "name": "fireball",
+      "base_mp_cost": 1000,
+      "complexity": 4,
+      "tags": [
+        "range",
+        "area_of_effect",
+        "fire",
+        "explosion"
+      ],
+      "range": 20,
+      "radius": 2,
+      "description": "A ball of fire shoots from the players hand, shoots to the target, and explodes",
+      "has_damage": true,
+      "damage": 1300.0,
+      "MP_cost": 1264.0,
+      "scalable": true,
+      "attack": {
+        "stats": [
+          "Crea"
+        ],
+        "skill": "spellcasting"
+      }
+    }
+  },
+  "spell_tags": {
+    "absorb": {
+      "cost_modifier": " + 0.2*base_mp_cost",
+      "description": "spell takes energy from another spell or effect",
+      "prereqs_all": [
+        "mana_manipulation"
+      ]
+    },
+    "area_of_effect": {
+      "cost_modifier": " + 2*radius",
+      "description": "spell covers an area",
+      "prereqs_all": [
+        "range"
+      ]
+    },
+    "bleed": {
+      "cost_modifier": " + 0.5*base_mp_cost",
+      "description": "spell will trigger bleeding check",
+      "prereqs_any": [
+        "piercing",
+        "edged"
+      ]
+    },
+    "blunt": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has edged aspect or does blunt type damage",
+      "prereqs_all": null
+    },
+    "burn": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.1*base_mp_cost",
+      "description": "spell includes lasting fire damage or ignition, triggers condition burning check",
+      "prereqs_any": [
+        "fire",
+        "cold"
+      ]
+    },
+    "cold": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has cold aspect or damage type",
+      "prereqs_all": null
+    },
+    "competitive_condition": {
+      "cost_modifier": " + 0.5*base_mp_cost",
+      "description": "Forces an opposed check: caster's attack roll vs target's defense to apply a status effect",
+      "prereqs_all": null
+    },
+    "conceptual": {
+      "description": "prerequesite skill, spell deals with advanced concepts such as time or space",
+      "prereqs_all": null
+    },
+    "dimensional": {
+      "cost_modifier": " + base_mp_cost",
+      "description": "Manipulates space or portals",
+      "prereqs_all": [
+        "conceptual"
+      ]
+    },
+    "distant_cast": {
+      "cost_modifier": " + min(3*(max(range) if hasattr(range, '__iter__') else range)",
+      "description": "spell does not originate at caster",
+      "prereqs_all": [
+        "range"
+      ]
+    },
+    "edged": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has edged aspect or does edged type damage",
+      "prereqs_all": null
+    },
+    "explosion": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.2*base_mp_cost",
+      "description": "spell includes a fiery explosion",
+      "prereqs_any": [
+        "fire",
+        "lightning"
+      ]
+    },
+    "extended_range": {
+      "cost_modifier": " + min(3*(max(range) if hasattr(range, '__iter__') else range), 150)",
+      "description": "Spell has a range of up to 50m",
+      "prereqs_all": [
+        "range"
+      ]
+    },
+    "extreme_range": {
+      "cost_modifier": " + min(2*(max(range) if hasattr(range, '__iter__') else range), 300)",
+      "description": "Spell has a range of up to 150m",
+      "prereqs_all": [
+        "range",
+        "extended_range"
+      ]
+    },
+    "fire": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has fire aspect or damage type",
+      "prereqs_all": null
+    },
+    "force": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has a kinetic aspect",
+      "prereqs_all": null
+    },
+    "freeze": {
+      "cost_modifier": " + 0.5*base_mp_cost",
+      "description": "spell attempts to slow or stop a target",
+      "prereqs_all": [
+        "cold"
+      ]
+    },
+    "gravity": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell is related to or has an aspect of gravity",
+      "prereqs_all": [
+        "conceptual"
+      ]
+    },
+    "healing": {
+      "cost_modifier": " + 2*base_mp_cost",
+      "description": "spell directly affects the health of the target",
+      "prereqs_all": [
+        "conceptual"
+      ]
+    },
+    "illusion": {
+      "cost_modifier": " + base_mp_cost",
+      "description": "Creates false images or sensations",
+      "prereqs_any": [
+        "light",
+        "mental"
+      ]
+    },
+    "light": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has an aspect of or manupilates light",
+      "prereqs_all": null
+    },
+    "lightning": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has electrical aspect or damage type",
+      "prereqs_all": null
+    },
+    "mana_manipulation": {
+      "cost_modifier": " + 0.5*base_mp_cost",
+      "description": "spell manupilates mana beyond its own casting",
+      "prereqs_all": null
+    },
+    "mental": {
+      "cost_modifier": " + base_mp_cost",
+      "description": "spell has mental aspect or targets the mind",
+      "prereqs_all": null
+    },
+    "piercing": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "damage_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has edged aspect or does piercing type damage",
+      "prereqs_all": null
+    },
+    "probability": {
+      "cost_modifier": " + base_mp_cost",
+      "description": "Affects chance, luck, or fate",
+      "prereqs_all": [
+        "conceptual"
+      ]
+    },
+    "range": {
+      "cost_modifier": " + min(3*(max(range) if hasattr(range, '__iter__') else range), 60)",
+      "description": "Spell has a range of up to 20m",
+      "prereqs_all": null
+    },
+    "search": {
+      "cost_modifier": " + 2*base_mp_cost",
+      "description": "spell has a searching feature or aspect",
+      "prereqs_all": null
+    },
+    "shield": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell blocks an object, spell, or attack, or otherwise prevents crossing",
+      "prereqs_all": [
+        "force"
+      ]
+    },
+    "stun": {
+      "cost_modifier": " + 0.2*base_mp_cost",
+      "description": "spell can trigger stun check",
+      "prereqs_any": [
+        "lightning",
+        "blunt",
+        "mental"
+      ]
+    },
+    "sustained": {
+      "description": "spell can be sustained over time",
+      "prereqs_all": null
+    },
+    "target": {
+      "cost_modifier": " + 0.2*base_mp_cost",
+      "description": "spell designates a target (prerequesite for tracking/self-targeting spells)",
+      "prereqs_all": null
+    },
+    "target_jump": {
+      "cost_modifier": " + 0.2*base_mp_cost",
+      "description": "spell effect can jump from one target to another",
+      "prereqs_all": [
+        "lightning",
+        "range",
+        "target"
+      ]
+    },
+    "temporal": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell has an effect on time",
+      "prereqs_all": [
+        "conceptual"
+      ]
+    },
+    "tracking": {
+      "cost_modifier": " + 0.1*base_mp_cost",
+      "description": "spell adjusts to follow a target",
+      "prereqs_all": [
+        "target",
+        "range"
+      ]
+    }
+  }
+}

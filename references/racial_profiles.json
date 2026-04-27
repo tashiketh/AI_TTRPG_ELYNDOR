@@ -1,0 +1,126 @@
+{
+  "human": {
+    "name": "Human",
+    "plural": "Humans",
+    "description": "The most numerous and adaptable race in Elyndor. Humans dominate the continent not through raw power or magic, but through sheer population, resilience, organization, and ambition.",
+    "appearance": "Highly varied in skin tone, hair color, eye color, and build. Average height 5'6\"–6'2\". Lifespan ranges from 40–100 years.",
+    "society": "Organized into feudal kingdoms, merchant republics, and city-states. Slavery is legal and widespread. Strong emphasis on law, trade, family, and personal achievement.",
+    "culture": "Pragmatic, opportunistic, and expansionist. Value hard work, cleverness, and loyalty to one’s own.",
+    "strengths": ["Adaptability", "Numbers", "Political organization", "Innovation"],
+    "weaknesses": ["Short lifespan", "Internal political divisions", "Impulsiveness"],
+    "common_professions": ["merchant", "soldier", "farmer", "craftsman", "scholar", "adventurer", "priest"],
+    "relations": {
+      "elf": "Respectful but distant allies",
+      "dwarf": "Strong trade partners",
+      "beastkin": "Deep suspicion and prejudice after the Demon War betrayal",
+      "nekko": "Smug vindication over their rightful subjugation",
+      "demon": "Mortal enemies"
+    }
+  },
+
+  "elf": {
+    "name": "Elf",
+    "plural": "Elves",
+    "description": "Graceful, long-lived masters of magic who played a decisive role in sealing the Demon Rift eighteen months ago.",
+    "appearance": "Tall and slender with elegant features, pointed ears, and smooth skin. Hair colors often silver, gold, or deep green. Lifespan 300–500+ years.",
+    "society": "Reclusive enclaves governed by powerful archmagi and ancient noble houses.",
+    "culture": "Patient, artistic, scholarly, and deeply connected to magic and the natural world. Tend toward arrogance and long-term thinking.",
+    "strengths": ["Magical potency", "Longevity", "Scholarship", "Archery"],
+    "weaknesses": ["Low population", "Slow cultural adaptation", "Arrogance"],
+    "common_professions": ["mage", "archer", "scholar", "diplomat", "ranger", "artist"],
+    "relations": {
+      "human": "Functional but cool allies",
+      "dwarf": "Respectful but distant",
+      "beastkin": "Neutral to wary",
+      "nekko": "pity",
+      "demon": "Mortal enemies"
+    }
+  },
+
+  "dwarf": {
+    "name": "Dwarf",
+    "plural": "Dwarves",
+    "description": "Sturdy, resilient mountain folk renowned for their mastery of stone, metal, and engineering.",
+    "appearance": "Short and broad, with thick beards (males) and strong builds. Lifespan 250–350 years.",
+    "society": "Organized into great Holds and clans. Value honor, craftsmanship, and clan loyalty.",
+    "culture": "Practical, stubborn, and proud of their ancestral traditions and superior metallurgy.",
+    "strengths": ["Durability", "Craftsmanship", "Engineering", "Mining"],
+    "weaknesses": ["Slow movement", "Distrust of magic", "Insularity"],
+    "common_professions": ["blacksmith", "miner", "engineer", "warrior", "stonemason", "brewer"],
+    "relations": {
+      "human": "Strong trade allies",
+      "elf": "Respectful but distant",
+      "beastkin": "Wary",
+      "nekko": "Neutral",
+      "demon": "Mortal enemies"
+    }
+  },
+
+  "demon": {
+    "name": "Demon",
+    "plural": "Demons",
+    "description": "Invaders from another dimension. Hierarchical, aggressive, and highly dangerous.",
+    "subraces": {
+      "low_caste": {
+        "name": "Low-Caste Demon",
+        "description": "The most common demon soldiers, citizens, and raiders.",
+        "appearance": "Hunched, heavily muscled, grey-skinned, four arms (two primary, two secondary), digitigrade legs, jagged teeth.",
+        "common_professions": ["soldier", "worker"],
+        "traits": ["Brutish", "Aggressive", "Pack hunters"],
+        "role": "Warriors, scouts, raiders"
+      },
+      "high_caste": {
+        "name": "High-Caste Demon",
+        "description": "Rare noble/leader caste of demons.",
+        "appearance": "Taller, more elegant, two arms, large bat-like or membranous wings, burning red eyes, regal bearing.",
+        "common_professions": ["noble", "general", "overseer"],
+        "traits": ["Intelligent", "Commanding", "Often spellcasters"],
+        "role": "Overseers, generals, sorcerers"
+      }
+    },
+    "relations": {
+      "human": "Mortal enemies",
+      "elf": "Mortal enemies",
+      "dwarf": "Mortal enemies",
+      "beastkin": "Betrayed former allies — now hunt and enslave them",
+      "nekko": "Betrayed former allies — now hunt and enslave them"
+    }
+  },
+
+  "beastkin": {
+    "name": "Beastkin",
+    "plural": "Beastkin",
+    "description": "Once valued for their wilderness skills, now deeply distrusted after their short-lived alliance with the demons during the invasion.",
+    "appearance": "Pronounced animal features, digitigrade legs, fur/hide, muzzles.",
+    "society": "Tribal, live in remote wilds",
+    "culture": "Aggressive rule by strength, fierce devotion to family",
+    "strengths": ["strength", "agility", "survival skills", "instincts"],
+    "weaknesses": ["wild", "low creativity", "suspicion of outsiders"],
+    "common_professions": ["raider", "tribal position", "slave"],
+    "relations": {
+      "human": "Wary fear",
+      "elf": "Wary neutrality",
+      "dwarf": "Distant",
+      "demon": "Betrayed and hunted",
+      "nekko": "Derision"
+    }
+  },
+    "nekko": {
+    "name": "Nekko",
+    "plural": "Nekkos",
+    "description": "A subrace of the beastkin, once valued as scouts and nature guides, now deeply distrusted after their short-lived alliance with the demons during the invasion.",
+    "appearance": "Extremely fit and attractive human appearance with smooth skin and added animal ears, tail, claws, and eyes. May have either feline or canine traits.",
+    "society": "Often second-class among beastkin; many live as outcasts or slaves in human lands.",
+    "culture": "Highly loyal to friends and family",
+    "strengths": ["Highly agile", "Attractive", "High vitality", "Night vision"],
+    "weaknesses": ["Low aggression", "low intellegence", "low strength"],
+    "common_professions": ["scout", "slave", "laborer"],
+    "relations": {
+      "human": "Wary fear",
+      "elf": "Wary neutrality",
+      "dwarf": "Distant",
+      "demon": "Betrayed and hunted",
+      "beastkin": "Neutral"
+    }
+  }
+}

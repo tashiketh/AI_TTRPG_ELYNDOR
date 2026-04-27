@@ -1,0 +1,33 @@
+Category;Item;Sub-category;range;base_damage;base_speed;base_armor;hp;capacity;Base Price;base_weight;tags;description
+Weapons;Dagger;melee;0.3;10;1;;200;;1S;0.4;[edged];
+Weapons;Sword;melee;0.6;20;2;;200;;20S;1.3;[edged];
+Weapons;Axe;melee;0.6;20;2;;150;;18S;2.5;[edged,blunt];
+Weapons;Battle Axe;melee;0.8;25;2.5;;300;;40S;3;[edged,piercing];
+Weapons;Spear;melee;1.8;15;4;;150;;8S;1.5;[edged,piercing];
+Weapons;Quarterstaff;melee;1;10;1;;150;;5S;1.8;[blunt];
+Weapons;Short Bow;ranged;[2,10,25];10;4;;50;;40S;1;[piercing];
+Weapons;Longbow;ranged;[5,100,250];20;8;;50;;3G;1.2;[piercing];
+Weapons;Basic Stirrup Crossbow;ranged;[5,40,200];30;10;;50;;4G;3.5;[piercing];
+Weapons;basic winch crossbow;ranged;[5,100,400];50;30;;100;;30G;4;[piercing];
+Shields;Buckler;small;;2.5;1;;200;;8S;1;[shield, blunt];
+Shields;Kite;medium;;5;2;;300;;20S;2.5;[shield, blunt];
+Shields;Tower;large;;20;4;;500;;100G;15;[shield, blunt];
+Armor;leather breastplate;light;;;;5;;;1G;1.5;[armor];
+Armor;leather torso;light;;;;7;;;2G;2;[armor];
+Armor;full leather;light;;;;10;;;5G;5;[armor];
+Armor;leather with metal;medium;;;;12;;;10G;5;[armor];
+Armor;breastplate;medium;;;;15;;;15G;3;[armor];
+Armor;scale mail;medium;;;;18;;;20G;6;[armor];
+Armor;full plate;heavy;;;;30;;;500G;20;[armor];
+Supplies;Apple;food;;;;;;;1C;0.1;[food];single piece of fruit, apple or otherwise
+Supplies;full meal;food;;;;;;;40C;0.5;[food];
+Supplies;Herb Bundle;medicine;;;;;;;5C;0.1;[medicine, raw];
+Supplies;Potion (Heal Minor);medicine;;;;;;;1G;0.2;[medicine, potion];
+ammunition;arrow;arrow;;1;;;;;5C;0.05;[ammunition, bow];
+ammunition;bolt;bolt;;1;;;;;7C;0.05;[ammunition, crossbow];
+services;inn room;rest;;;;;;;1S;;[service];common room
+services;luxury ;rest;;;;;;;1G;;[service];luxurious and impressive room
+utility;bag;container;;;;;;5;10C;1.5;[container];small bag worn on a shoulder strap
+utility;backpack;container;;;;;;15;50C;2;[container];medium comfortable cloth container
+utility;travel pack;container;;;;;;50;20C;5;[container];large and unwieldy cloth container 
+quiver;quiver;container;;;;;;1;5S;;[container, ammunition];plain container for arrows or bolts

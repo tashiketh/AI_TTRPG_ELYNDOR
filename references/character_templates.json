@@ -1,0 +1,52 @@
+{
+  "identity": {
+    "name": "",
+    "gender": "",
+    "race": "",
+    "background": "",
+    "class_theme": "",
+    "reputation": 0,
+    "title": "",
+    "age": 0
+  },
+  "stats": {
+    "Str": 0,
+    "Agi": 0,
+    "Vit": 0,
+    "Ins": 0,
+    "Will": 0,
+    "Crea": 0
+  },
+  "skills": {
+    "melee weapons": 0.0,
+    "unarmed combat": 0.0,
+    "ranged weapons": 0.0,
+    "shields": 0.0,
+    "spellcasting": 0.0,
+    "athletics": 0.0,
+    "survival": 0.0,
+    "stealth": 0.0,
+    "investigation": 0.0,
+    "communication": 0.0,
+    "tactics": 0.0,
+    "smithing": 0.0,
+    "woodworking": 0.0,
+    "leatherworking": 0.0,
+    "alchemy": 0.0,
+    "enchanting": 0.0,
+    "medicine": 0.0,
+    "animal handling": 0.0,
+    "slight of hand": 0.0,
+    "research": 0.0
+  },
+  "derived": {
+    "HP": 0,
+    "HP_max": 0,
+    "MP": 0,
+    "MP_max": 0,
+    "AC": 0
+  },
+  "inventory": {},
+  "equipment": {},
+  "gold": 0
+}

@@ -1,0 +1,167 @@
+{
+    "npcs": {
+        "npc_kaelra": {
+            "npc_id": "npc_kaelra",
+            "name": "Kaelra",
+            "sex": "female",
+            "race": "elf",
+            "age": 28,
+            "role": "companion",
+            "faction": "adventurers_guild",
+            "location": "Blackthorn Forest",
+            "tier": 2,
+            "stats": {
+                "Str": 9,
+                "Agi": 18,
+                "Vit": 16,
+                "Ins": 17,
+                "Will": 14,
+                "Crea": 19
+            },
+            "personality": {
+                "core_trait": "idealistic",
+                "social_trait": "loyal",
+                "work_ethic": "diligent",
+                "attitude": "optimistic"
+            },
+            "voice_profile": {
+                "core_personality": "Idealistic Kaelra who loyal and optimistic",
+                "speech_style": "casual",
+                "quirks": [
+                    "uses hand gestures",
+                    "avoids eye contact"
+                ],
+                "example_dialogue": [
+                    "Kaelra nods. 'Tell me more.'",
+                    "'Oh', Kaelra says.",
+                    "Kaelra leans in. 'Are you sure?'"
+                ],
+                "forbidden": [
+                    "vulgarity",
+                    "boasting"
+                ]
+            },
+            "trust": 5,
+            "deviation_range": 5,
+            "relationship": "neutral",
+            "mood": "neutral",
+            "status": "active",
+            "inventory": {},
+            "relationships": {},
+            "known_facts": [],
+            "quests_involved": [],
+            "last_interaction": null,
+            "created_at": "2026-04-24T21:16:39.087765",
+            "updated_at": "2026-04-24T21:16:39.087765"
+        },
+        "npc_garrick": {
+            "npc_id": "npc_garrick",
+            "name": "Garrick",
+            "sex": "male",
+            "race": "human",
+            "age": 45,
+            "role": "tavern keeper",
+            "faction": "none",
+            "location": "Daejon",
+            "tier": 1,
+            "stats": {
+                "Str": 10,
+                "Agi": 9,
+                "Vit": 14,
+                "Ins": 11,
+                "Will": 12,
+                "Crea": 16
+            },
+            "personality": {
+                "core_trait": "pragmatic",
+                "social_trait": "friendly",
+                "work_ethic": "diligent",
+                "attitude": "patient"
+            },
+            "voice_profile": {
+                "core_personality": "Pragmatic Garrick who friendly and patient",
+                "speech_style": "technical",
+                "quirks": [
+                    "whispers often",
+                    "frequent pauses",
+                    "uses old proverbs"
+                ],
+                "example_dialogue": [
+                    "Garrick frowns. 'Tell me more.'",
+                    "'Well, well', Garrick replies.",
+                    "Garrick crosses arms. 'Are you sure?'"
+                ],
+                "forbidden": [
+                    "vulgarity",
+                    "boasting"
+                ]
+            },
+            "trust": 0,
+            "deviation_range": 7,
+            "relationship": "neutral",
+            "mood": "neutral",
+            "status": "active",
+            "inventory": {},
+            "relationships": {},
+            "known_facts": [],
+            "quests_involved": [],
+            "last_interaction": null,
+            "created_at": "2026-04-24T21:16:39.093294",
+            "updated_at": "2026-04-24T21:16:39.093294"
+        },
+        "npc_gorruk": {
+            "npc_id": "npc_gorruk",
+            "name": "Gorruk",
+            "sex": "male",
+            "race": "beastfolk",
+            "age": 32,
+            "role": "warrior",
+            "faction": "none",
+            "location": "Northern Territories",
+            "tier": 1,
+            "stats": {
+                "Str": 14,
+                "Agi": 18,
+                "Vit": 17,
+                "Ins": 14,
+                "Will": 14,
+                "Crea": 8
+            },
+            "personality": {
+                "core_trait": "cynical",
+                "social_trait": "aloof",
+                "work_ethic": "careless",
+                "attitude": "impulsive"
+            },
+            "voice_profile": {
+                "core_personality": "Cynical Gorruk who aloof and impulsive",
+                "speech_style": "poetic",
+                "quirks": [
+                    "whispers often",
+                    "frequent pauses"
+                ],
+                "example_dialogue": [
+                    "Gorruk frowns. 'Tell me more.'",
+                    "'Oh', Gorruk replies.",
+                    "Gorruk crosses arms. 'Are you sure?'"
+                ],
+                "forbidden": [
+                    "flowery language",
+                    "boasting"
+                ]
+            },
+            "trust": -5,
+            "deviation_range": 10,
+            "relationship": "neutral",
+            "mood": "neutral",
+            "status": "active",
+            "inventory": {},
+            "relationships": {},
+            "known_facts": [],
+            "quests_involved": [],
+            "last_interaction": null,
+            "created_at": "2026-04-24T21:16:39.099819",
+            "updated_at": "2026-04-24T21:16:39.099819"
+        }
+    }
+}
