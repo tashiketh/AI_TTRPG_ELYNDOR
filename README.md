@@ -62,6 +62,7 @@ Experience dynamic storytelling powered by Mistral AI while playing through a fu
 - Begin your adventure with an AI-generated opening scene
 - Interact using natural language
 - The AI DM responds dynamically to your actions in combat, dialogue, exploration, and more
+- If you want to play your own custom story, edit core\Story_bible.txt and references\opening_scene.json
 
 ---
 
