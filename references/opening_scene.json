@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "world_id": "elyndor",
+  "source": "references/opening_scene.json",
+  "campaign_summary": "The adventure begins at the opening crisis: the player has awakened hidden on a forested slope above a caravan massacre, with a chained wounded nekko woman nearby and demons below.",
+  "character_creation": {
+    "text": "You awaken with a violent jolt - not from sleep, but from being torn through reality itself.\n\nOne moment you are going about your normal routine, the next you are waking in an endless void. You are between worlds. Between realities.\n\nA new life lies before you, but first you must remember who you were..."
+  },
+  "opening_scene": {
+    "title": "Your Awakening in Elyndor",
+    "status": "awaiting_player_response",
+    "text": "YOUR AWAKENING IN ELYNDOR\n\nYou awaken with a violent jolt - not from sleep, but from being torn through reality itself.\n\nOne moment you were in your world. The next, you're slammed into damp earth and leaf litter, gasping for breath. Your heart hammers. The air smells of smoke, blood, and something acrid - like ozone mixed with sulfur.\n\nYou're on a gentle forested slope. Through the bushes and trees you have cover, but only barely.\n\nA hundred yards down the road, a caravan is being massacred.\n\nThree wagons are stopped on the dirt road. Screams echo as demonic monstrosities - hunched, grey-skinned, creatures the size of large men with jagged-toothed and 4 arms each rip into the travelers with claws and crude weapons. Their laughter is guttural and wet. Bodies are being torn apart with horrifying casualness.\n\nAbove it all, circling lazily in the sky, is a winged demon - taller, more elegant, with leathery wings and burning red eyes. It watches the slaughter like a conductor overseeing an orchestra.\n\nYou are hidden... for now.\n\nA slight movement just an arm's length away draws your attention. Half-hidden by the same bushes that hide you lies a bleeding woman with feline ears and a tail. She's unconscious, bleeding from a gash all over her body. Her wrists are bound with heavy iron chains. A bright red tattoo glows faintly on the side of her neck.\n\nAs you watch, she collapses into the dirt, not yet hidden from the slaughter. You don't know if she saw you or not, but if any of the demons glance up the hill, they will almost certainly see her and if you're still there, they will find you too."
+  },
+  "scene_facts": [
+    "The player has just arrived in Elyndor and is hidden on a forested slope above a caravan ambush.",
+    "A caravan is being massacred one hundred yards away by a group of four-armed grey-skinned demons.",
+    "A winged demon circles above the massacre enjoying the carnage below.",
+    "A wounded unconscious nekko woman with feline ears and a tail lies nearby. She is a young woman between 18 and 20 years old.",
+    "The nekko woman is bleeding from various wounds. Her wounds are serious but not life threatening",
+    "The nekko woman has chains binding her wrists and marked by a faintly glowing red tattoo on her neck.",
+    "The tattoo on the nekko woman is a slave mark, used by all races and made to be difficult to hide or remove. It glows a faint but steady red.",
+    "The player and the wounded woman are not yet noticed, but remaining exposed risks discovery by the demons.",
+    "The caravan travelers and attacking demons are currently unnamed scene groups, not individually tracked NPCs."
+  ],
+  "world": {
+    "location": {
+      "settlement": "Caravan Road Ambush",
+      "region": "Forested River Road",
+      "coordinates": [0, 0]
+    },
+    "time": {
+      "day": 1,
+      "hour": 8,
+      "season": "spring"
+    }
+  }
+}
