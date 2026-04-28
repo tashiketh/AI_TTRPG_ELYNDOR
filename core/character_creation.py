@@ -9,14 +9,14 @@ from path_config import path_config
 from helper_functions import calculate_scaled_hp_mp_max
 
 # Configuration
-RACE_DATA_PATH = "references/races.json"
-BACKGROUNDS_PATH = "references/backgrounds.json"
+RACE_DATA_PATH = path_config.references_dir / "races.json"
+BACKGROUNDS_PATH = path_config.references_dir / "backgrounds.json"
 GAME_STATE_PATH = str(path_config.game_state_path)
 
 # Default race data (if files don't exist)
 DEFAULT_RACE_DATA = {
     "human": {
-        "base_stats": {"Str": 12, "Agi": 10, "Vit": 10, "Ins": 12, "Will": 10, "Crea": 12},
+        "base_stats": {"Str": 12, "Agi": 10, "Vit": 10, "Ins": 12, "Will": 15, "Crea": 12},
         "max_stats": {"Str": 20, "Agi": 20, "Vit": 20, "Ins": 20, "Will": 20, "Crea": 20},
         "gender_modifiers": {
             "male": {"Str": 2, "Vit": 1, "Will": -1},
@@ -447,7 +447,85 @@ class CharacterCreator:
 
     def _summarize_guided_background(self, name: str, gender: str,
                                      guided_answers: Dict[str, str]) -> str:
-        """Create a compact one-sentence background from guided answers."""
+        """Create a short, readable background sentence without an API call."""
+        occupation = self._short_answer_phrase(guided_answers.get("occupation", ""), max_words=4)
+        traits = self._background_trait_phrases(guided_answers)
+
+        pronoun = "They"
+        if gender == "male":
+            pronoun = "He"
+        elif gender == "female":
+            pronoun = "She"
+
+        if occupation:
+            article = self._article_for(occupation)
+            subject = f"{pronoun} was {article + ' ' if article else ''}{occupation}"
+        else:
+            subject = f"{pronoun} lived an ordinary life"
+
+        if traits:
+            summary = f"{subject} with {', '.join(traits[:2])}."
+        else:
+            summary = f"{subject} before Elyndor."
+        return self._limit_sentence_words(summary, max_words=18)
+
+    def _short_answer_phrase(self, answer: Any, max_words: int = 4) -> str:
+        """Reduce a freeform answer to a compact noun/adjective phrase."""
+        clean = self._clean_answer(answer, max_chars=90)
+        clean = re.sub(r"\([^)]*\)", "", clean)
+        clean = re.sub(r"\b(i'm|i am|i was|i worked as|i worked in|i|my)\b", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"\b(worked as|worked in|served as|served in)\b", "", clean, flags=re.IGNORECASE)
+        clean = re.split(r"[.;]|, and | and also |\bbut\b|\bbefore\b", clean, maxsplit=1, flags=re.IGNORECASE)[0]
+        clean = " ".join(clean.split()).strip(" .,")
+        if not clean:
+            return ""
+        if not any(token.isupper() and len(token) > 1 for token in clean.split()):
+            clean = clean.lower()
+        words = clean.split()
+        return " ".join(words[:max_words]).strip(" .,")
+
+    def _background_trait_phrases(self, guided_answers: Dict[str, str]) -> List[str]:
+        """Select one or two concise traits implied by guided answers."""
+        text_by_id = {
+            key: str(guided_answers.get(key, "") or "").lower()
+            for key in ["hobbies", "emergency_response", "wilderness_survival", "strengths", "weaknesses", "personal_flaw"]
+        }
+        combined = " ".join(text_by_id.values())
+        traits = []
+
+        def add_trait(trait: str):
+            if trait and trait not in traits:
+                traits.append(trait)
+
+        if any(word in combined for word in ["military", "air force", "army", "navy", "marine", "discipline", "disciplined"]):
+            add_trait("military discipline")
+        if any(word in combined for word in ["calm", "pressure", "emergency", "crisis", "steady"]):
+            add_trait("steady nerves")
+        if any(word in combined for word in ["racquetball", "raquetball", "sport", "sports", "athlete", "running", "martial", "hiking"]):
+            add_trait("athletic habits")
+        if any(word in combined for word in ["writing", "writer", "music", "artist", "creative"]):
+            add_trait("creative habits")
+        if any(word in combined for word in ["reading", "research", "analyst", "analysis", "database", "programmer", "software"]):
+            add_trait("an analytical mind")
+        if any(word in combined for word in ["survival", "camping", "wilderness", "hunting", "foraging"]):
+            add_trait("survival instincts")
+        if not traits:
+            weakness = self._short_answer_phrase(text_by_id.get("weaknesses", ""), max_words=3)
+            if weakness:
+                add_trait(f"weakness in {weakness}")
+        return traits
+
+    def _limit_sentence_words(self, sentence: str, max_words: int = 18) -> str:
+        """Hard-limit a sentence by whitespace words while keeping it grammatical."""
+        clean = " ".join(str(sentence or "").split()).strip()
+        words = clean.rstrip(".").split()
+        if len(words) <= max_words:
+            return clean if clean.endswith(".") else clean + "."
+        return " ".join(words[:max_words]).rstrip(" ,;:.") + "."
+
+    def _legacy_guided_background(self, name: str, gender: str,
+                                  guided_answers: Dict[str, str]) -> str:
+        """Old verbose guided-background builder retained for reference."""
         occupation = self._third_person_fragment(guided_answers.get("occupation", ""))
         hobbies = self._third_person_fragment(guided_answers.get("hobbies", ""))
         emergency = self._third_person_fragment(guided_answers.get("emergency_response", ""))
@@ -644,10 +722,6 @@ class CharacterCreator:
         )
         if result.get("success"):
             result["guided_creation"] = interpretation
-            result["character"]["identity"]["guided_creation"] = {
-                "stat_adjustments": interpretation["stat_adjustments"],
-                "skill_bonuses": interpretation["skill_bonuses"],
-            }
         return result
     
     def _calculate_initial_skills(self, stats: Dict[str, int], background: str) -> Dict[str, float]:

@@ -35,7 +35,7 @@ function showRightTab(tabName) {
     }
 }
 function scrollToBottom() {
-    const output = document.getElementById('outputContent');
+    const output = document.getElementById('dmOutput');
     if (output) {
         output.scrollTop = output.scrollHeight;
     }
@@ -138,68 +138,115 @@ function updateCharacterSheet(player) {
         container.innerHTML = '<p>No character data available.</p>';
         return;
     }
-    const id = player.identity || {};
+
+    const id = player.identity || player;
     const stats = player.stats || {};
     const skills = player.skills || {};
     const derived = player.derived || {};
-    // Clean stats (remove duplicates)
-    const cleanStats = {};
-    Object.entries(stats).forEach(([k, v]) => {
-        const cleanKey = k.charAt(0).toUpperCase() + k.slice(1).toLowerCase();
-        if (!cleanStats[cleanKey] || (typeof v === 'number' && v > cleanStats[cleanKey])) {
-            cleanStats[cleanKey] = typeof v === 'number' ? parseFloat(v.toFixed(1)) : v;
-        }
-    });
+
     const html = `
         <div class="player-sheet">
             <div class="player-header">
                 <div class="player-title">
                     <h2>${id.name || 'Aburi'}</h2>
-                    <p class="subtitle">${(id.race || 'Human').toUpperCase()} • ${id.class_theme || 'Magic Swordsman'}</p>
-                    <p class="background">${id.background || ''}</p>
+                    <p class="subtitle">${(id.race || 'Human').toUpperCase()} • ${id.class_theme || 'Isekai Adventurer'}</p>
+                    <p class="background">${id.background || 'A former database analyst pulled into Elyndor.'}</p>
                 </div>
                 <div class="player-portrait">
                     <img src="/static/images/${id.name}.png" 
-                         alt="To see this character, add a PNG or JPG to .\\static\\images named ${id.name}">
+                         onerror="this.src='/static/images/default-character.png'" 
+                         alt="${id.name}">
                 </div>
             </div>
-            <h3>Core Attributes</h3>
-            <div class="stat-grid">
-                ${Object.entries(cleanStats).map(([k, v]) => `
+
+            <!-- HP / MP / AC -->
+            <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+                <div class="stat-item">
+                    <div class="stat-label">HP</div>
+                    <div class="stat-value">${derived.HP || 0} / ${derived.HP_max || 0}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">MP</div>
+                    <div class="stat-value">${derived.MP || 0} / ${derived.MP_max || 0}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">AC</div>
+                    <div class="stat-value">${derived.AC || '—'}</div>
+                </div>
+            </div>
+
+            <!-- Simple Divider -->
+            <div class="section-divider"></div>
+
+            <!-- Core Attributes - 6 columns -->
+            <div class="stat-grid" style="grid-template-columns: repeat(6, 1fr);">
+                ${Object.entries(stats).map(([k, v]) => `
                     <div class="stat-item">
                         <div class="stat-label">${k}</div>
-                        <div class="stat-value">${v}</div>
+                        <div class="stat-value">${typeof v === 'number' ? v.toFixed(1) : v}</div>
                     </div>
                 `).join('')}
             </div>
-            <h3>Skills</h3>
+
+            <!-- Simple Divider -->
+            <div class="section-divider"></div>
+
+            <!-- Skills -->
             <div class="stat-grid">
                 ${Object.entries(skills).map(([k, v]) => `
                     <div class="stat-item">
                         <div class="stat-label">${k}</div>
-                        <span class="stat-value">${parseFloat(v).toFixed(1)}</span>
+                        <span class="stat-value">${parseFloat(v || 0).toFixed(1)}</span>
                     </div>
                 `).join('')}
             </div>
-            <h3>Derived Stats</h3>
-        <div class="stat-grid">
-            <div class="stat-item"><span class="stat-label">HP</span><span class="stat-value">${derived.HP || 0}/${derived.HP_max || 0}</span></div>
-            <div class="stat-item"><span class="stat-label">MP</span><span class="stat-value">${Math.floor(derived.MP || 0)}/${derived.MP_max || 0}</span></div>
-            <div class="stat-item"><span class="stat-label">AC</span><span class="stat-value">${derived.AC || '—'}</span></div>
-        </div>
         </div>
     `;
+
     container.innerHTML = html;
 }
 function appendTranscriptLine(container, speaker, text, className = '') {
-    const line = document.createElement('p');
+    const line = document.createElement('div');  // Changed from <p> to <div> for better control
     if (className) line.className = className;
+
     const label = document.createElement('strong');
     label.textContent = `${speaker}: `;
     line.appendChild(label);
-    line.appendChild(document.createTextNode(text));
+
+    // Preserve paragraphs and line breaks
+    const paragraphs = text.split('\n\n');  // Split on double newlines (true paragraphs)
+    
+    paragraphs.forEach((para, index) => {
+        if (index > 0) {
+            const br = document.createElement('br');
+            line.appendChild(br);
+        }
+        
+        const paraText = document.createElement('span');
+        paraText.textContent = para.trim();
+        line.appendChild(paraText);
+    });
+
     container.appendChild(line);
     scrollToBottom();
+}
+function updateLastPlayerInput(text) {
+    const lastPlayerText = document.getElementById('lastPlayerText');
+    if (lastPlayerText) {
+        lastPlayerText.textContent = text || 'No action yet.';
+    }
+}
+function setSubmitButtonBusy(button, isBusy) {
+    if (!button) return;
+    const icon = button.querySelector('i');
+    const label = button.querySelector('span');
+    button.disabled = isBusy;
+    if (icon) {
+        icon.className = isBusy ? 'fa-solid fa-hourglass-half' : 'fa-solid fa-arrow-right';
+    }
+    if (label) {
+        label.textContent = isBusy ? 'Thinking...' : 'Submit';
+    }
 }
 // Submit Action
 // Submit Action - Improved with loading state + auto-scroll
@@ -208,23 +255,19 @@ async function submitAction() {
     const output = document.getElementById('outputContent');
     const playerText = input.value.trim();
 
-    if (!playerText) return;
+    if (!playerText || input.disabled) return;
 
-    // Add player message immediately
-    appendTranscriptLine(output, 'You', playerText);
+    // Keep the DM transcript for DM narration only.
+    updateLastPlayerInput(playerText);
 
     // Clear input
     input.value = '';
 
     // === LOADING STATE ===
-    const originalButtonText = "Send"; // adjust if your button text is different
-    const submitBtn = document.querySelector('.input-buttons button'); // or give your button an ID
+    const submitBtn = document.getElementById('submitActionButton');
 
     input.disabled = true;
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '⟳ DM is thinking...';
-    }
+    setSubmitButtonBusy(submitBtn, true);
 
     // Add thinking indicator
     const thinkingId = 'dm-thinking';
@@ -266,16 +309,10 @@ async function submitAction() {
     } finally {
         // Restore UI
         input.disabled = false;
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalButtonText || 'Send';
-        }
+        setSubmitButtonBusy(submitBtn, false);
         input.focus();
         scrollToBottom();
     }
-}
-function clearInput() {
-    document.getElementById('playerInput').value = '';
 }
 function showHelp() {
     alert("Try commands like:\n• attack goblin\n• cast fire dart\n• talk to kaelra\n• rest");
@@ -283,6 +320,15 @@ function showHelp() {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadGameState();
+    const input = document.getElementById('playerInput');
+    if (input) {
+        input.addEventListener('keydown', event => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+                event.preventDefault();
+                submitAction();
+            }
+        });
+    }
     // Removed automatic refresh - setInterval(loadGameState, 4000);
 });
 // ==================== PARTY TAB ====================

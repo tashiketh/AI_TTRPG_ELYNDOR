@@ -57,7 +57,7 @@ if you're still there, they will find you too.
 
 ### **Option 1: Add to New Game Creator (Recommended)**
 
-**File**: `new_game_creator.py`
+**File**: `core/new_game_creator.py`
 **Location**: After character creation, before starting the game
 
 **Add this call in `create_and_start_new_game()` function:**
@@ -94,7 +94,7 @@ game_character_data["initial_choice"] = initial_choice
 
 ### **Option 2: Add to Game Engine Initialization**
 
-**File**: `game_engine.py`
+**File**: `core/game_engine.py`
 **Location**: In the `start_new_game` method
 
 ```python
@@ -126,7 +126,7 @@ def start_new_game(self, character_data: Dict) -> Dict:
 
 ### **Option 3: Create a Separate Opening Scene Module**
 
-**File**: `opening_scene.py` (new file)
+**File**: `core/opening_scene.py` (new file)
 
 ```python
 #!/usr/bin/env python3
@@ -205,7 +205,7 @@ def get_opening_scene_consequences(choice: str) -> Dict:
 ## 🎯 Recommended Implementation
 
 ### **Step 1: Create the opening scene function**
-Add the `show_opening_scene()` function to `new_game_creator.py`
+Add the `show_opening_scene()` function to `core/new_game_creator.py`
 
 ### **Step 2: Modify the game creation flow**
 In `create_and_start_new_game()`, add:
@@ -221,7 +221,7 @@ game_character_data["opening_choice"] = initial_choice
 ```
 
 ### **Step 3: Modify Game Engine to handle opening choice**
-In `game_engine.py`, modify `start_new_game()` to:
+In `core/game_engine.py`, modify `start_new_game()` to:
 ```python
 def start_new_game(self, character_data: Dict) -> Dict:
     # ... existing code ...

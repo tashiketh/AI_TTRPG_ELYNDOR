@@ -5,10 +5,10 @@
 ### What Was Accomplished
 
 1. **Fixed Stat Allocation Bug**
-   - Changed bonus points from 4 to 6 in `character_creation_sequence.py`
+   - Changed bonus points from 4 to 6 in `core/character_creation_sequence.py`
    - Now properly allocates all 6 bonus points based on backstory keywords
 
-2. **Successfully Integrated All Components into game_engine.py**
+2. **Successfully Integrated All Components into `core/game_engine.py`**
    - ✅ Added imports for `APIManager` and `EnhancedSocialCalculator`
    - ✅ Initialized components in `GameEngine.__init__()`
    - ✅ Added `process_social_interaction()` method
@@ -23,16 +23,16 @@
 ### Files Modified/Created
 
 **Modified:**
-- `character_creation_sequence.py` - Fixed stat allocation (4→6 points)
-- `game_engine.py` - Added imports and integration code
+- `core/character_creation_sequence.py` - Fixed stat allocation (4→6 points)
+- `core/game_engine.py` - Added imports and integration code
 
 **Created:**
-- `api_integration.py` - Core API management with caching
-- `enhanced_social_calc.py` - Rich social interaction system
-- `character_creation_sequence.py` - Complete character creation flow
+- `core/api_integration.py` - Core API management with caching
+- `core/enhanced_social_calc.py` - Rich social interaction system
+- `core/character_creation_sequence.py` - Complete character creation flow
 - `references/api_prompts.json` - API prompt templates
-- `test_character_creation.py` - Demonstration script
-- `simple_test.py` - Integration verification
+- `tests/test_character_creation.py` - Demonstration script
+- `core/simple_test.py` - Integration verification
 
 ### Test Results
 
@@ -86,17 +86,17 @@ Final stats: {'Str': 18, 'Agi': 15, 'Vit': 16, 'Ins': 15, 'Will': 13, 'Crea': 14
 
 1. **Run Character Creation:**
    ```bash
-   python character_creation_sequence.py
+   python core/character_creation_sequence.py
    ```
 
 2. **Test Integration:**
    ```bash
-   python simple_test.py
+   python core/simple_test.py
    ```
 
 3. **Run Full Game:**
    ```bash
-   python game_engine.py
+   python main.py
    ```
 
 ### Next Steps (Optional Enhancements)

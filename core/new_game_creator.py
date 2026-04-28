@@ -10,12 +10,14 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-# Add the current directory to Python path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add the core directory to Python path for direct script execution.
+CORE_DIR = Path(__file__).resolve().parent
+if str(CORE_DIR) not in sys.path:
+    sys.path.insert(0, str(CORE_DIR))
 
 from character_creation_sequence import create_character_from_guided_answers, prompt_for_age
 from character_creation import GUIDED_CREATION_QUESTIONS
-from ai_opening_scene import get_opening_scene_text, get_character_creation_text
+from ai_opening_scene import get_character_creation_text
 from game_engine import GameEngine
 
 def show_welcome_screen():

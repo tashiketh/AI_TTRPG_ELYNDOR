@@ -69,13 +69,12 @@ Experience dynamic storytelling powered by Mistral AI while playing through a fu
 
 ```
 AI_TTRPG_ELYNDOR/
-├── core/                  # Core game systems (combat, character, social, etc.)
-├── ai/                    # AI integration and prompting logic
-├── app/                   # Flask web interface
-│   ├── templates/
-│   └── static/
-├── docs/                  # Design documents and lore
-├── data/                  # World bible and game data
+├── core/                  # Python game systems, AI integration, and design docs
+├── references/            # Game data, prompts, NPCs, items, skills, and templates
+├── templates/             # Flask HTML templates
+├── static/                # CSS, JavaScript, and image assets
+├── logs/                  # Local save data, transcripts, and debug logs
+├── tests/                 # Test and verification scripts
 ├── main.py                # Application entry point
 ├── requirements.txt
 └── README.md

@@ -8,8 +8,13 @@ import sys
 import os
 from pathlib import Path
 
-# Add the current directory to Python path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add the project and core directories to Python path.
+PROJECT_ROOT = Path(__file__).resolve().parent
+CORE_DIR = PROJECT_ROOT / "core"
+for import_path in (CORE_DIR, PROJECT_ROOT):
+    import_path_str = str(import_path)
+    if import_path_str not in sys.path:
+        sys.path.insert(0, import_path_str)
 
 from game_engine import GameEngine
 from path_config import path_config
@@ -58,7 +63,7 @@ def main():
         import subprocess
         try:
             result = subprocess.run([
-                sys.executable, "new_game_creator.py"
+                sys.executable, str(CORE_DIR / "new_game_creator.py")
             ], check=True, capture_output=False, text=True)
             
             if result.returncode == 0:
@@ -82,7 +87,7 @@ def main():
             print(f"\n❌ Error running character creator: {str(e)}")
             sys.exit(1)
         except FileNotFoundError:
-            print("\n❌ new_game_creator.py not found. Please run it manually first.")
+            print(f"\n❌ {CORE_DIR / 'new_game_creator.py'} not found. Please run it manually first.")
             sys.exit(1)
 
 if __name__ == "__main__":

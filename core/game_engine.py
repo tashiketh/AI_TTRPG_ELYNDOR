@@ -23,7 +23,7 @@ from map_tools import get_current_map, execute_map_command
 from inventory_tools import add_item_to_inventory
 from social_calc import resolve_social_interaction
 from crafting import craft_item, study_spell, create_spell, add_found_or_purchased_item
-from helper_functions import roll_generic_check
+from helper_functions import calculate_scaled_hp_mp_max, roll_generic_check
 from quest_tools import add_quest_to_journal, update_quest_progress, complete_quest, get_active_quests
 from npc_manager import get_npc, update_npc, get_npcs_by_location
 try:
@@ -33,11 +33,19 @@ except ImportError:
 from character_creation import CharacterCreator
 from api_integration import APIManager
 from enhanced_social_calc import EnhancedSocialCalculator
-from ai_opening_scene import get_opening_scene_facts, get_opening_scene_text
+from ai_opening_scene import (
+    get_opening_campaign_summary,
+    get_opening_scene_facts,
+    get_opening_scene_source,
+    get_opening_scene_status,
+    get_opening_scene_text,
+    get_opening_scene_title,
+    get_opening_world_state,
+)
 # Configuration
 GAME_STATE_PATH = path_config.game_state_path
-STORY_BIBLE_PATH = "Story_bible.txt"
-CHARACTER_TEMPLATES_PATH = "references/character_templates.json"
+STORY_BIBLE_PATH = path_config.story_bible_path
+CHARACTER_TEMPLATES_PATH = path_config.references_dir / "character_templates.json"
 API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"  # Mistral 3 Large endpoint
 logger = logging.getLogger("GameEngine")
 # Conversation management settings
@@ -48,6 +56,12 @@ STORY_FILE_NAME = "story_transcript.md"
 DM_PROMPT_DEBUG_FILE_NAME = "last_dm_prompt_debug.md"
 DM_PROMPT_DEBUG_JSON_FILE_NAME = "last_dm_prompt_debug.json"
 DM_RESPONSE_DEBUG_JSON_FILE_NAME = "last_api_response_dm_narration.json"
+NPC_GENDER_MODIFIERS = {
+    "male": {"Str": 2, "Vit": 1, "Will": -1},
+    "female": {"Str": -1, "Ins": 1, "Will": 1},
+}
+NPC_FACT_MAX_COUNT = 40
+NPC_FACT_MAX_CHARS = 320
 class ConversationManager:
     """Manages conversation history and summary for efficient API calls."""
     
@@ -235,11 +249,6 @@ class GameEngine:
         self.combat = CombatTools()
         self.combat_manager = CombatManager(self)
         self.conversation_manager = ConversationManager()
-        self.conversation_manager.summary = (
-            "The adventure begins at the opening crisis: the player has awakened "
-            "hidden on a forested slope above a caravan massacre, with a chained "
-            "wounded nekko woman nearby and demons below."
-            )
         self.character_creator = CharacterCreator()
         # Initialize API manager and enhanced social calculator
         self.api_manager = APIManager()
@@ -308,31 +317,20 @@ class GameEngine:
         self.web_interface.run()
     def _clean_known_facts(self):
         """Prevent known_facts from nesting or exploding."""
+        player = self.game_state.get("player")
+        if isinstance(player, dict):
+            identity = self._npc_identity(player)
+            identity.pop("guided_creation", None)
+            identity["known_facts"] = self._sanitize_known_facts_value(
+                identity.get("known_facts", []),
+                allow_character_creation=True,
+            )
         npcs = self.game_state.setdefault("npcs", {})
-        for npc_id, npc in npcs.items():
-            if not isinstance(npc, dict):
-                continue
-            identity = self._npc_identity(npc)
-            facts = identity.get("known_facts", [])
-            
-            if isinstance(facts, dict):          # Nested dict case
-                facts = list(facts.values()) if isinstance(facts, dict) else []
-            
-            if isinstance(facts, list):
-                cleaned = []
-                seen = set()
-                for f in facts:
-                    if isinstance(f, (list, dict)):   # Catch nested structures
-                        f = str(f)[:300]              # Flatten it
-                    clean = " ".join(str(f).split()).strip()
-                    if clean and clean not in seen and len(clean) < 500:
-                        seen.add(clean)
-                        cleaned.append(clean)
-                
-                # Hard cap
-                identity["known_facts"] = cleaned[-50:]   # Max 50 facts per NPC
-            else:
-                identity["known_facts"] = []
+        if isinstance(npcs, dict):
+            for npc in (npc for npc in npcs.values() if isinstance(npc, dict)):
+                identity = self._npc_identity(npc)
+                identity.pop("guided_creation", None)
+                identity["known_facts"] = self._sanitize_known_facts_value(identity.get("known_facts", []))
     def _load_game_state(self):
         """Load the game state from file."""
         try:
@@ -352,7 +350,7 @@ class GameEngine:
     def _save_game_state(self):
         """Save the game state to file."""
         try:
-            self._clean_known_facts()           # ← ADD THIS
+            self._clean_known_facts()
             self._normalize_npc_records()
             with open(GAME_STATE_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.game_state, f, indent=2)
@@ -365,6 +363,73 @@ class GameEngine:
         """Build a stable canonical NPC id from a learned display name."""
         slug = re.sub(r"[^a-z0-9]+", "_", str(name or "").strip().lower()).strip("_")
         return f"npc_{slug or 'unknown'}"
+
+    def _is_generic_npc_reference(self, value: Any) -> bool:
+        """Return true for race/species/role labels that should not be canonical NPC ids."""
+        normalized = self._normalize_key_text(value).replace("-", " ").replace("_", " ")
+        if normalized.startswith("npc "):
+            normalized = normalized[4:]
+        generic_tokens = {
+            "human", "elf", "dwarf", "beastfolk", "beastkin", "nekko", "nekkko",
+            "catfolk", "demon", "woman", "man", "girl", "boy", "person", "npc",
+            "unknown", "unnamed", "unknown npc", "unnamed npc", "unknown woman",
+            "unknown man", "nekko woman", "nekko man", "beastfolk woman",
+            "beastfolk man", "unknown nekko woman", "unnamed nekko woman",
+            "unknown beastfolk woman", "unnamed beastfolk woman",
+        }
+        return normalized in generic_tokens
+
+    def _allocate_placeholder_npc_id(self, reference: Any, updates: Optional[Dict[str, Any]] = None) -> str:
+        """Allocate a stable unnamed NPC id for generic references like npc_nekko."""
+        inferred = self._infer_race_gender_from_reference(reference, json.dumps(updates or {}, ensure_ascii=False))
+        race = inferred.get("race") or "unknown"
+        gender = inferred.get("gender")
+        role = {"female": "woman", "male": "man"}.get(gender, "npc")
+        base = f"unnamed_{race}_{role}"
+        base = re.sub(r"[^a-z0-9_]+", "_", base.lower()).strip("_")
+        npcs = self.game_state.setdefault("npcs", {})
+        if base not in npcs:
+            return base
+        counter = 2
+        while f"{base}_{counter}" in npcs:
+            counter += 1
+        return f"{base}_{counter}"
+
+    def _ensure_npc_for_interaction(self, reference: Any, player_input: str = "",
+                                    updates: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Create a template-shaped live NPC when a player first interacts with an unnamed target."""
+        if not reference:
+            return None
+        resolved = self._resolve_npc_reference(str(reference))
+        if resolved:
+            return resolved
+        learned_name = (updates or {}).get("name")
+        if learned_name and self._is_learned_npc_name(learned_name, str(reference)):
+            npc_id = self._make_npc_id_from_name(str(learned_name))
+        elif self._is_generic_npc_reference(reference):
+            npc_id = self._allocate_placeholder_npc_id(reference, updates)
+        else:
+            npc_id = self._make_npc_id_from_name(str(reference)) if not str(reference).startswith(("npc_", "unnamed_")) else str(reference)
+
+        inferred = self._infer_race_gender_from_reference(reference, learned_name or "", player_input, json.dumps(updates or {}, ensure_ascii=False))
+        source = {
+            "npc_id": npc_id,
+            "aliases": [str(reference)],
+        }
+        if learned_name:
+            source["name"] = learned_name
+        if inferred.get("race"):
+            source["race"] = inferred["race"]
+        if inferred.get("gender"):
+            source["gender"] = inferred["gender"]
+
+        npc = self._make_template_npc(npc_id, source)
+        if player_input:
+            self._append_npc_known_fact(npc, f"First interacted with during player action: {self._compact_text(player_input, 180)}")
+        self.game_state.setdefault("npcs", {})[npc_id] = npc
+        self.game_state.setdefault("npc_aliases", {})[str(reference)] = npc_id
+        self._normalize_npc_records()
+        return self._resolve_npc_reference(learned_name or str(reference)) or npc_id
     def _is_learned_npc_name(self, name: Any, current_key: str = "") -> bool:
         """Return true when a placeholder NPC has a real learned name."""
         normalized = self._normalize_key_text(name)
@@ -390,10 +455,46 @@ class GameEngine:
             template_path = path_config.references_dir / "character_templates.json"
             with open(template_path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
-            return loaded if isinstance(loaded, dict) else {"identity": {}}
+            return self._blank_character_template(loaded if isinstance(loaded, dict) else {})
         except Exception as e:
             logger.error(f"Failed to load character template: {e}")
-            return {"identity": {}}
+            return self._blank_character_template({})
+
+    def _blank_character_template(self, template: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a template shape with player-specific saved values cleared."""
+        identity_source = template.get("identity") if isinstance(template.get("identity"), dict) else {}
+        identity = {
+            "name": "",
+            "gender": "",
+            "race": "",
+            "background": "",
+            "class_theme": "",
+            "reputation": 0,
+            "title": "",
+            "age": 0,
+            "relationships": {},
+            "known_facts": [],
+        }
+        for key, value in identity_source.items():
+            if key not in identity and key != "guided_creation":
+                identity[key] = [] if isinstance(value, list) else {} if isinstance(value, dict) else ""
+
+        stats_source = template.get("stats") if isinstance(template.get("stats"), dict) else {}
+        stats = {stat: 0 for stat in (stats_source.keys() or ["Str", "Agi", "Vit", "Ins", "Will", "Crea"])}
+        skills_source = template.get("skills") if isinstance(template.get("skills"), dict) else {}
+        skills = {skill: 0.0 for skill in skills_source}
+        derived_source = template.get("derived") if isinstance(template.get("derived"), dict) else {}
+        derived = {field: 0 for field in (derived_source.keys() or ["HP", "HP_max", "MP", "MP_max", "AC"])}
+
+        return {
+            "identity": identity,
+            "stats": stats,
+            "skills": skills,
+            "derived": derived,
+            "inventory": {},
+            "equipment": {},
+            "gold": 0,
+        }
     def _template_identity_fields(self) -> set:
         return set((self._load_character_template().get("identity") or {}).keys())
     def _npc_identity(self, npc: Dict[str, Any]) -> Dict[str, Any]:
@@ -415,28 +516,201 @@ class GameEngine:
                 return player_rel.get("interaction_history", default)
         return npc.get(field, default)
 
+    def _sanitize_known_fact_text(self, fact: Any, allow_character_creation: bool = False) -> str:
+        """Return one safe narrative fact, or an empty string if it is technical/nested."""
+        if not isinstance(fact, (str, int, float, bool)):
+            return ""
+        clean = " ".join(str(fact).split()).strip()
+        if not clean:
+            return ""
+        lowered = clean.lower()
+        bad_phrases = [
+            "known_facts",
+            "identity:",
+            "stats:",
+            "skills:",
+            "derived:",
+            "inventory:",
+            "equipment:",
+            "gold:",
+            "{",
+            "}",
+            "[",
+            "]",
+            "':",
+            '":',
+            "0.0",
+        ]
+        if any(phrase in lowered for phrase in bad_phrases):
+            return ""
+        npc_bad_prefixes = (
+            "former occupation:",
+            "former hobbies:",
+            "emergency response:",
+            "wilderness survival:",
+            "personal strengths:",
+            "personal weaknesses:",
+            "personal flaw:",
+            "narration from this interaction:",
+            "player action during this interaction:",
+        )
+        if not allow_character_creation and lowered.startswith(npc_bad_prefixes):
+            return ""
+        return clean[:NPC_FACT_MAX_CHARS].rstrip()
+
+    def _sanitize_known_facts_value(self, facts: Any, allow_character_creation: bool = False) -> List[str]:
+        """Normalize known_facts to a small flat list of strings only."""
+        if isinstance(facts, list):
+            raw_facts = facts
+        elif isinstance(facts, (str, int, float, bool)):
+            raw_facts = [facts]
+        elif isinstance(facts, dict):
+            # Do not walk nested known_facts structures; rescue only direct simple fact text.
+            raw_facts = [
+                facts.get(key)
+                for key in ("fact", "note", "description", "summary")
+                if isinstance(facts.get(key), (str, int, float, bool))
+            ]
+        else:
+            raw_facts = []
+
+        cleaned: List[str] = []
+        seen = set()
+        total_chars = 0
+        for fact in raw_facts:
+            clean = self._sanitize_known_fact_text(fact, allow_character_creation=allow_character_creation)
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            cleaned.append(clean)
+            total_chars += len(clean)
+            if total_chars >= NPC_FACT_MAX_COUNT * NPC_FACT_MAX_CHARS:
+                break
+        return cleaned[-NPC_FACT_MAX_COUNT:]
+
     def _append_npc_known_fact(self, npc: Dict[str, Any], fact: Any):
         """Only add clean, readable narrative facts."""
         identity = self._npc_identity(npc)
-        known_facts = identity.setdefault("known_facts", [])
-
-        if not isinstance(known_facts, list):
-            known_facts = []
-            identity["known_facts"] = known_facts
-
-        clean = " ".join(str(fact).split()).strip()[:450]
-
-        # Block technical garbage
-        bad_phrases = ["stats:", "skills:", "derived:", "known_facts:", "gold:", "{", "':", "0.0"]
-        if any(phrase in clean.lower() for phrase in bad_phrases):
-            return
-
+        known_facts = self._sanitize_known_facts_value(identity.get("known_facts", []))
+        clean = self._sanitize_known_fact_text(fact)
         if clean and len(clean) > 12 and clean not in known_facts:
             known_facts.append(clean)
+        identity["known_facts"] = known_facts[-NPC_FACT_MAX_COUNT:]
 
-        # Keep only the most recent 40 facts
-        if len(known_facts) > 40:
-            known_facts[:] = known_facts[-40:]
+    def _normalize_npc_gender(self, gender: Any) -> str:
+        normalized = self._normalize_key_text(gender)
+        if normalized in {"female", "woman", "girl", "lady", "she", "her"}:
+            return "female"
+        if normalized in {"male", "man", "boy", "gentleman", "he", "him"}:
+            return "male"
+        return normalized if normalized in NPC_GENDER_MODIFIERS else ""
+
+    def _infer_race_gender_from_reference(self, *values: Any) -> Dict[str, str]:
+        text = self._normalize_key_text(" ".join(str(value or "") for value in values))
+        race = ""
+        race_aliases = {
+            "nekko": "nekko",
+            "nekkko": "nekko",
+            "catfolk": "nekko",
+            "feline beastfolk": "nekko",
+            "beastfolk": "beastfolk",
+            "beastkin": "beastfolk",
+            "demon": "demon",
+            "elf": "elf",
+            "dwarf": "dwarf",
+            "human": "human",
+        }
+        for candidate, race_key in race_aliases.items():
+            if candidate in text:
+                race = race_key
+                break
+        gender = ""
+        if any(word in text for word in ("woman", "female", "girl", "lady", "she", "her")):
+            gender = "female"
+        elif any(word in text for word in ("man", "male", "boy", "gentleman", " he ", " him ")):
+            gender = "male"
+        return {"race": race, "gender": gender}
+
+    def _load_base_stat_table(self) -> Dict[str, Any]:
+        try:
+            with open(path_config.base_stats_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            return loaded if isinstance(loaded, dict) else {}
+        except Exception as e:
+            logger.error(f"Failed to load base stats for NPC creation: {e}")
+            return {}
+
+    def _base_stats_race_key(self, race: Any) -> str:
+        normalized = self._normalize_key_text(race).replace(" ", "_").replace("-", "_")
+        aliases = {
+            "beastkin": "beastfolk",
+            "beast_kin": "beastfolk",
+            "true_beastkin": "beastfolk",
+            "catfolk": "nekko",
+            "nekkko": "nekko",
+        }
+        return aliases.get(normalized, normalized or "human")
+
+    def _npc_baseline_stats(self, race: Any, gender: Any = "") -> Dict[str, int]:
+        """Build NPC stats from base_stats.json averages plus character-creation gender mods."""
+        base_table = self._load_base_stat_table()
+        race_key = self._base_stats_race_key(race or "human")
+        race_stats = base_table.get(race_key) or base_table.get("human") or {}
+        stats: Dict[str, int] = {}
+        max_stats: Dict[str, int] = {}
+        for stat in ("Str", "Agi", "Vit", "Ins", "Will", "Crea"):
+            values = race_stats.get(stat, [8, 10, 12])
+            if isinstance(values, list) and len(values) >= 3:
+                stats[stat] = int(values[1])
+                max_stats[stat] = int(values[2])
+            else:
+                stats[stat] = int(values if isinstance(values, (int, float)) else 10)
+                max_stats[stat] = max(20, stats[stat])
+        for stat, modifier in NPC_GENDER_MODIFIERS.get(self._normalize_npc_gender(gender), {}).items():
+            stats[stat] = max(1, min(max_stats.get(stat, 99), stats.get(stat, 10) + modifier))
+        return stats
+
+    def _npc_derived_from_stats(self, stats: Dict[str, int]) -> Dict[str, int]:
+        maxima = calculate_scaled_hp_mp_max(stats)
+        return {
+            "HP": maxima["HP_max"],
+            "HP_max": maxima["HP_max"],
+            "MP": maxima["MP_max"],
+            "MP_max": maxima["MP_max"],
+            "AC": 10 + stats.get("Agi", 10) // 2,
+            "Initiative": stats.get("Agi", 10) + stats.get("Ins", 10) // 2,
+            "Carry_Capacity": stats.get("Str", 10) * 10,
+        }
+
+    def _initialize_npc_baseline_stats(self, npc: Dict[str, Any], force: bool = False):
+        identity = self._npc_identity(npc)
+        race = self._racial_profile_key(identity.get("race") or npc.get("race") or "human")
+        gender = self._normalize_npc_gender(identity.get("gender") or npc.get("gender") or "")
+        existing_stats = npc.get("stats") if isinstance(npc.get("stats"), dict) else {}
+        has_stats = any(float(value or 0) > 0 for value in existing_stats.values())
+        if force or not has_stats:
+            npc["stats"] = self._npc_baseline_stats(race, gender)
+        npc["derived"] = self._npc_derived_from_stats(npc.get("stats", {}))
+
+    def _looks_like_player_creation_artifact(self, source: Dict[str, Any]) -> bool:
+        """Detect NPC records polluted by player character creation output."""
+        if not isinstance(source, dict):
+            return False
+        identity = source.get("identity") if isinstance(source.get("identity"), dict) else source
+        facts = identity.get("known_facts", []) if isinstance(identity, dict) else []
+        fact_text = " ".join(str(fact) for fact in facts if isinstance(fact, (str, int, float, bool))).lower()
+        background = self._normalize_key_text(identity.get("background", "") if isinstance(identity, dict) else "")
+        class_theme = self._normalize_key_text(identity.get("class_theme", "") if isinstance(identity, dict) else "")
+        return (
+            isinstance(identity, dict)
+            and (
+                "guided_creation" in identity
+                or fact_text.startswith("former occupation:")
+                or "former occupation:" in fact_text
+                or "before elyndor" in background
+                or class_theme == "isekai adventurer"
+            )
+        )
             
     def _normalize_relationships_value(self, relationships: Any) -> Dict[str, Any]:
         """Normalize relationship data so history uses template vocabulary."""
@@ -463,10 +737,30 @@ class GameEngine:
         if field in {"npc_id", "aliases", "updated_at", "experience"}:
             return
 
+        if field in {"background", "class_theme", "guided_creation"}:
+            return
+
         if field == "trust_level":
             field = "trust"
         if field == "emotional_response":
             field = "mood"
+        if field == "trust":
+            try:
+                identity["trust"] = round(float(value), 2)
+            except (TypeError, ValueError):
+                identity["trust"] = value
+            return
+        if field == "mood":
+            identity["mood"] = str(value)
+            return
+
+        if field in {"facts", "known_fact"}:
+            field = "known_facts"
+
+        if field == "known_facts":
+            for fact in self._sanitize_known_facts_value(value):
+                self._append_npc_known_fact(npc, fact)
+            return
 
         # === RELATIONSHIPS ===
         if field == "relationship":
@@ -495,6 +789,16 @@ class GameEngine:
             self._append_npc_known_fact(npc, f"{field}: {value}")
             return
 
+        if field == "gender":
+            identity["gender"] = self._normalize_npc_gender(value) or str(value)
+            self._initialize_npc_baseline_stats(npc, force=True)
+            return
+
+        if field == "race":
+            identity["race"] = self._base_stats_race_key(value)
+            self._initialize_npc_baseline_stats(npc, force=True)
+            return
+
         # === TEMPLATE IDENTITY FIELDS ===
         if field in template_fields:
             identity[field] = value
@@ -511,15 +815,26 @@ class GameEngine:
         if not isinstance(template.get("identity"), dict):
             template["identity"] = {}
         source = source or {}
+        source_is_polluted = self._looks_like_player_creation_artifact(source)
         aliases = set(source.get("aliases", [])) if isinstance(source.get("aliases"), list) else set()
         for alias in [npc_id, source.get("npc_id"), source.get("name"), source.get("display_name")]:
             if alias:
                 aliases.add(str(alias))
         source_identity = source.get("identity") if isinstance(source.get("identity"), dict) else {}
         for field, value in source_identity.items():
+            if source_is_polluted and field in {
+                "age", "background", "class_theme", "guided_creation", "known_facts",
+                "relationships",
+            }:
+                continue
             if value not in ("", None, [], {}):
                 self._set_npc_field(template, field, value)
         for field, value in source.items():
+            if source_is_polluted and field in {
+                "stats", "skills", "derived", "gold", "background", "class_theme",
+                "guided_creation", "known_facts",
+            }:
+                continue
             if field != "identity" and value not in ("", None, [], {}):
                 self._set_npc_field(template, field, value)
         identity = self._npc_identity(template)
@@ -529,18 +844,26 @@ class GameEngine:
             identity["name"] = "Unknown Beastfolk Woman"
         if not identity.get("name") and npc_id.startswith(("unnamed_nekko", "unnamed_nekkko")):
             identity["name"] = "Unknown Nekko Woman"
+        inferred = self._infer_race_gender_from_reference(
+            npc_id,
+            source.get("npc_id"),
+            source.get("name"),
+            " ".join(sorted(aliases)),
+        )
+        if inferred.get("race") and not identity.get("race"):
+            identity["race"] = inferred["race"]
+        if inferred.get("gender") and not identity.get("gender"):
+            identity["gender"] = inferred["gender"]
         if not identity.get("race") and (
             "nekko" in npc_id
             or "nekkko" in npc_id
-            or identity.get("name") in {"Lysara", "Ryn"}
         ):
             identity["race"] = "nekko"
         if not identity.get("race") and "beastfolk" in npc_id:
             identity["race"] = "beastfolk"
-        if identity.get("name") in {"Lysara", "Ryn"}:
-            identity["race"] = "nekko"
         identity.setdefault("relationships", {})
         identity.setdefault("known_facts", [])
+        self._initialize_npc_baseline_stats(template)
         if aliases:
             alias_map = self.game_state.setdefault("npc_aliases", {})
             canonical_key = self._make_npc_id_from_name(identity.get("name", "")) if self._is_learned_npc_name(identity.get("name"), npc_id) else npc_id
@@ -552,9 +875,25 @@ class GameEngine:
         """Merge two NPC records into a single canonical template-shaped record."""
         merged = self._make_template_npc(canonical_key, canonical)
         for source in (duplicate,):
-            for field, value in source.items():
+            source_identity = source.get("identity") if isinstance(source.get("identity"), dict) else {}
+            for field, value in source_identity.items():
                 if value not in ("", None, [], {}):
                     self._set_npc_field(merged, field, value)
+            for field, value in source.items():
+                if field != "identity" and value not in ("", None, [], {}):
+                    self._set_npc_field(merged, field, value)
+        identity = self._npc_identity(merged)
+        inferred = self._infer_race_gender_from_reference(
+            canonical_key,
+            duplicate_key,
+            json.dumps(canonical, ensure_ascii=False),
+            json.dumps(duplicate, ensure_ascii=False),
+        )
+        if inferred.get("race") and not identity.get("race"):
+            identity["race"] = inferred["race"]
+        if inferred.get("gender") and not identity.get("gender"):
+            identity["gender"] = inferred["gender"]
+        self._initialize_npc_baseline_stats(merged, force=bool(inferred.get("race") or inferred.get("gender")))
         alias_map = self.game_state.setdefault("npc_aliases", {})
         for alias in [canonical_key, duplicate_key, self._get_npc_field(canonical, "name"), self._get_npc_field(duplicate, "name")]:
             if alias:
@@ -725,101 +1064,87 @@ class GameEngine:
         except Exception as e:
             logger.error(f"Failed to write DM prompt debug file: {e}")
     def _call_mistral_api(self, prompt: str) -> str:
-        """Call the Mistral 3 Large API."""
+        """Call the Mistral API with the improved novel-style prompt."""
         api_key = self.api_manager.api_key
-        system_content = (
-            "You are the DM for a dark fantasy TTRPG. Preserve player agency strictly. "
-            "Narrate only the direct consequences of the player's declared action and what NPCs, enemies, "
-            "the environment, and time do in response. Never add a new player action, movement, decision, "
-            "thought, feeling, departure, return, attack, search, pickup, or conversation that the player "
-            "did not explicitly declare. If the declared action reaches a natural stopping point, stop there "
-            "and leave the next choice unresolved. End with exactly one JSON command block."
-        )
+
+        # === IMPROVED DM PROMPT ===
+        system_content = """You are an expert Dungeon Master narrating a dark fantasy TTRPG in a novel-like style.
+
+Core Rules:
+- Never speak or act for the player. Incorporate exactly what they said and did into the narrative.
+- Fix the player's grammar and spelling when weaving their actions/words into the story.
+- Write in third-person limited, focusing on what the player experiences.
+- Responses should be 3 to 5 well-flowing paragraphs.
+- Do not summarize or repeat the scene setting unless something meaningful has changed.
+
+Structure:
+1. First paragraph: Begin directly with the player's most recent action or words, integrating them naturally.
+2. Middle paragraphs: Show how the world and NPCs react — include meaningful dialogue, body language, thoughts, and consequences.
+3. Final paragraph: End on a natural continuation. Never end with a question, cliffhanger, or "What do you do next?"
+
+Style Guidelines:
+- Be vivid but concise. Avoid long descriptions of eyes, hair, weather, or architecture unless directly relevant.
+- Do not use cheesy phrases, dramatic monologues, or "this could be our salvation... or our doom" style writing.
+- Do not re-describe the same location or characters every turn.
+- Keep the tone dark, grounded, and immersive.
+- Focus on atmosphere, tension, and character emotion rather than purple prose.
+
+Remember: These responses will be stitched together into a continuous story. Prioritize flow and readability above all."""
+
         messages = [
             {"role": "system", "content": system_content},
             {"role": "user", "content": prompt},
         ]
+
         input_tokens = self.api_manager._estimate_token_count(messages)
+
         if not api_key:
             fallback = self._fallback_dm_response()
             self._write_dm_response_debug(fallback, {"source": "fallback", "reason": "missing api key"}, input_tokens)
-            self.api_manager.record_token_usage(
-                "dm_narration",
-                input_tokens,
-                self.api_manager._estimate_token_count(fallback),
-                True,
-                source="fallback"
-            )
+            self.api_manager.record_token_usage("dm_narration", input_tokens, self.api_manager._estimate_token_count(fallback), True, source="fallback")
             return fallback
+
         if requests is None:
             fallback = self._fallback_dm_response("requests is not installed")
             self._write_dm_response_debug(fallback, {"source": "fallback", "reason": "requests is not installed"}, input_tokens)
-            self.api_manager.record_token_usage(
-                "dm_narration",
-                input_tokens,
-                self.api_manager._estimate_token_count(fallback),
-                False,
-                source="fallback"
-            )
+            self.api_manager.record_token_usage("dm_narration", input_tokens, self.api_manager._estimate_token_count(fallback), False, source="fallback")
             return fallback
+
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        
+
         data = {
             "model": self.api_manager.dm_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are the DM for a dark fantasy TTRPG. Preserve player agency strictly. "
-                        "Narrate only the direct consequences of the player's declared action and what NPCs, enemies, "
-                        "the environment, and time do in response. Never add a new player action, movement, decision, "
-                        "thought, feeling, departure, return, attack, search, pickup, or conversation that the player "
-                        "did not explicitly declare. If the declared action reaches a natural stopping point, stop there "
-                        "and leave the next choice unresolved. End with exactly one JSON command block."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1000
+            "messages": messages,
+            "temperature": 0.75,
+            "max_tokens": 1200
         }
+
         try:
             self.api_manager.delay_before_call()
-            data["messages"] = messages
-            response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=30)
+            response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=40)
             response.raise_for_status()
-            
+
             result = response.json()
             content = result["choices"][0]["message"]["content"].strip()
+
             self._write_dm_response_debug(content, result, input_tokens)
             self.api_manager.record_token_usage(
-                "dm_narration",
-                input_tokens,
-                self.api_manager._estimate_token_count(content),
-                True,
-                source="game_engine"
+                "dm_narration", input_tokens, 
+                self.api_manager._estimate_token_count(content), True, source="game_engine"
             )
             return content
-            
-        except requests.exceptions.RequestException as e:
+
+        except Exception as e:
             error_msg = f"[API ERROR] {type(e).__name__}: {str(e)}"
             print(error_msg)
             fallback = self._fallback_dm_response(error_msg)
             self._write_dm_response_debug(fallback, {"source": "fallback", "reason": error_msg}, input_tokens)
-            self.api_manager.record_token_usage(
-                "dm_narration",
-                input_tokens,
-                self.api_manager._estimate_token_count(fallback),
-                False,
-                source="game_engine"
-            )
+            self.api_manager.record_token_usage("dm_narration", input_tokens, self.api_manager._estimate_token_count(fallback), False, source="game_engine")
             return fallback
+            
     def _write_dm_response_debug(self, content: str, raw_response: Optional[Dict[str, Any]] = None,
                                  input_tokens: Optional[int] = None):
         """Persist the latest raw DM response so post-call failures are diagnosable."""
@@ -1319,6 +1644,35 @@ class GameEngine:
             "story_bible_excerpt": self._story_bible_excerpt(player_input, max_chars=900),
             "racial_profiles": self._select_racial_profiles(),
         }
+    def _build_shared_story_context(self, player_input: str,
+                                    turn_context: Optional[Dict[str, Any]] = None,
+                                    narrative_brief: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Story continuity packet shared by DM and NPC-facing prompts."""
+        scene_facts = self._compact_list_text(
+            self.game_state.get("scenario", {}).get("scene_facts", []),
+            12,
+            220,
+        )
+        world_facts = self._compact_list_text(
+            self.game_state.get("world", {}).get("facts", []),
+            8,
+            220,
+        )
+        return {
+            "campaign_summary": self._compact_text(self.conversation_manager.get_summary_file_text(), 1200),
+            "recent_exchanges": self._compact_recent_exchanges(4),
+            "current_scene": self._compact_text(self._get_scene_context(), 900),
+            "scene_brief": self._compact_text((narrative_brief or {}).get("scene_brief", ""), 700),
+            "scene_facts": scene_facts,
+            "world_facts": world_facts,
+            "known_npcs": self._get_known_npcs_for_prompt(),
+            "location": self.game_state.get("world", {}).get("location", {}),
+            "player": self._compact_player_for_prompt(),
+            "player_possessions": self._compact_player_possessions_for_prompt(),
+            "turn_context": self._compact_turn_context_for_prompt(turn_context),
+            "relevant_lore": self._select_dm_lore_profiles(player_input, turn_context, scene_facts),
+            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=900),
+        }
     def _evaluate_turn_context(self, player_input: str) -> Dict[str, Any]:
         """Use the context model to decide what context matters this turn."""
         context = self._build_turn_evaluation_context(player_input)
@@ -1674,6 +2028,8 @@ class GameEngine:
         inferred_dc = int(inferred.get("difficulty_class") or model_dc)
         if model_dc == 50 and detection.get("parse_error"):
             return inferred_dc
+        if model_dc == 50 and inferred.get("needs_skill_check") and inferred_dc != 50:
+            return inferred_dc
         return max(1, min(100, int(model_dc)))
     def _resolve_skill_check(self, skill_check: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Run a detected skill check through the generic roll function."""
@@ -1915,6 +2271,7 @@ class GameEngine:
         context.update({
             "turn_context": self._compact_turn_context_for_prompt(turn_context),
             "narrative_brief": narrative_brief or {},
+            "story_context": self._build_shared_story_context(player_input, turn_context, narrative_brief),
             "racial_profiles": self._select_racial_profiles(turn_context),
             "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=700),
             "social_check": self._compact_social_check_for_prompt(social_check),
@@ -1976,7 +2333,9 @@ class GameEngine:
             success = bool(skill_result.get("success"))
             margin = skill_result.get("margin")
             constraints["skill_result"] = {
+                "source": skill_result.get("source"),
                 "skill": skill_result.get("skill") or (skill_check or {}).get("skill"),
+                "difficulty_class": (skill_check or {}).get("difficulty_class") or skill_result.get("difficulty_class"),
                 "result": "success" if success else "failure",
                 "margin": round(float(margin), 2) if isinstance(margin, (int, float)) else margin,
                 "narration_constraint": (
@@ -1995,6 +2354,8 @@ class GameEngine:
         compact_review = self._compact_npc_review_for_prompt(npc_review)
         if compact_review.get("npc_actions"):
             constraints["npc_actions"] = compact_review["npc_actions"]
+        if compact_review.get("notes"):
+            constraints["npc_notes"] = compact_review["notes"]
         compact_turn = self._compact_turn_context_for_prompt(turn_context)
         continuity = compact_turn.get("continuity_constraints") or []
         forbidden = compact_turn.get("forbidden_assumptions") or []
@@ -2127,12 +2488,13 @@ Use a single command for one change, or multi for several:
   "action": "multi",
   "commands": [
     {{"action": "scene_update", "command": {{"current_scene": "What is physically true now.", "facts": ["Durable scene fact."]}}}},
-    {{"action": "npc_update", "command": {{"npc_id": "npc_lysara", "updates": {{"mood": "afraid", "status": "freed", "name": "Lysara"}}}}}},
+    {{"action": "npc_update", "command": {{"npc_id": "existing_or_new_npc_id", "updates": {{"mood": "afraid", "status": "freed", "known_facts": ["Durable NPC fact."]}}}}}},
     {{"action": "note_fact", "command": {{"fact": "A durable world or story fact the game must remember."}}}}
   ]
 }}
 ```
 Available command actions: narrative, scene_update, location_update, npc_update, note_fact, inventory, quest, spell_create, spell_study, spell_cast, combat_start, combat_action, combat_end, skill_check.
+If your narrative names, describes, injures, moves, or changes an NPC, include an npc_update for that NPC in the JSON. If a name is revealed, include that newly revealed name in updates.name. Do not use race-only ids like npc_nekko as permanent NPC ids; use an existing npc_id, a descriptive unnamed id, or the named id once learned.
 Do not emit social_interaction for the current player action. Use skill_check only for additional checks that were not already precomputed.
 ONLY output the narrative + one JSON block. No extra text."""
         
@@ -2200,16 +2562,33 @@ ONLY output the narrative + one JSON block. No extra text."""
         ):
             return {"success": False, "message": "Refusing to create or update the player as an NPC"}
         npcs = self.game_state.setdefault("npcs", {})
-        npc_id = self._resolve_npc_reference(npc_id) or npc_id
+        original_npc_ref = npc_id
+        npc_id = (
+            self._resolve_npc_reference(npc_id)
+            or self._ensure_npc_for_interaction(npc_id, updates=updates)
+            or npc_id
+        )
+        npcs = self.game_state.setdefault("npcs", {})
         if npc_id not in npcs:
             npc_lookup = get_npc(npc_id)
+            inferred = self._infer_race_gender_from_reference(original_npc_ref, json.dumps(updates, ensure_ascii=False))
             source = npc_lookup.get("npc", {"npc_id": npc_id}) if npc_lookup.get("success") else {"npc_id": npc_id}
+            aliases = source.get("aliases") if isinstance(source.get("aliases"), list) else []
+            aliases.append(str(original_npc_ref))
+            source["aliases"] = aliases
+            if inferred.get("race"):
+                source.setdefault("race", inferred["race"])
+            if inferred.get("gender"):
+                source.setdefault("gender", inferred["gender"])
             npcs[npc_id] = self._make_template_npc(npc_id, source)
         for field, value in updates.items():
             self._set_npc_field(npcs[npc_id], field, value)
+        if any(field in updates for field in ("race", "gender")):
+            self._initialize_npc_baseline_stats(npcs[npc_id], force=True)
         if "name" in updates:
             self._normalize_npc_records()
             npc_id = self._resolve_npc_reference(updates["name"]) or npc_id
+            self.game_state.setdefault("npc_aliases", {})[str(original_npc_ref)] = npc_id
         else:
             self._normalize_npc_records()
         return {"success": True, "message": f"Updated NPC {npc_id}", "updated_fields": list(updates.keys())}
@@ -2235,6 +2614,82 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "results": results
             }
         return self._execute_single_command(command)
+
+    def _iter_command_entries(self, command: Any) -> List[Dict[str, Any]]:
+        """Flatten a DM command or multi-command into individual command objects."""
+        if not isinstance(command, dict):
+            return []
+        if command.get("commands") is not None or command.get("action", "").lower() in {"multi", "state_update"}:
+            entries = []
+            for item in command.get("commands", []) if isinstance(command.get("commands"), list) else []:
+                entries.extend(self._iter_command_entries(item))
+            return entries
+        return [command]
+
+    def _npc_refs_from_completed_turn(self, command: Dict[str, Any],
+                                      social_check: Optional[Dict[str, Any]],
+                                      social_result: Optional[Dict[str, Any]],
+                                      npc_review: Optional[Dict[str, Any]]) -> List[str]:
+        refs: List[str] = []
+        for item in self._iter_command_entries(command):
+            action = item.get("action", "").lower()
+            payload = self._command_payload(item)
+            if action in {"npc_update", "npc_state", "social_interaction"}:
+                refs.extend([
+                    payload.get("npc_id"),
+                    payload.get("target_npc"),
+                    payload.get("updates", {}).get("name") if isinstance(payload.get("updates"), dict) else None,
+                ])
+        if isinstance(social_check, dict):
+            refs.extend([social_check.get("target_npc"), social_check.get("npc_id")])
+        if isinstance(social_result, dict):
+            refs.append(social_result.get("npc_id"))
+            reaction = social_result.get("npc_reaction") if isinstance(social_result.get("npc_reaction"), dict) else {}
+            refs.append(reaction.get("npc_id"))
+        if isinstance(npc_review, dict):
+            for action in npc_review.get("npc_actions", []) if isinstance(npc_review.get("npc_actions"), list) else []:
+                if isinstance(action, dict):
+                    refs.extend([action.get("npc_id"), action.get("name")])
+        return [str(ref) for ref in refs if ref]
+
+    def _reconcile_npcs_after_narration(self, player_input: str, narrative: str,
+                                        command: Dict[str, Any],
+                                        social_check: Optional[Dict[str, Any]] = None,
+                                        social_result: Optional[Dict[str, Any]] = None,
+                                        npc_review: Optional[Dict[str, Any]] = None):
+        """After final DM narration, keep only NPC-descriptive sentences as memory."""
+        candidate_sentences = [
+            sentence.strip()
+            for sentence in re.split(r"(?<=[.!?])\s+", str(narrative or ""))
+            if sentence.strip()
+        ][:8]
+        seen = set()
+        for ref in self._npc_refs_from_completed_turn(command, social_check, social_result, npc_review):
+            resolved = self._resolve_npc_reference(ref)
+            if not resolved or resolved in seen:
+                continue
+            npc = self.game_state.get("npcs", {}).get(resolved)
+            if not isinstance(npc, dict):
+                continue
+            npc_name = self._normalize_key_text(self._get_npc_field(npc, "name", ""))
+            npc_race = self._normalize_key_text(self._get_npc_field(npc, "race", ""))
+            added = 0
+            for sentence in candidate_sentences:
+                lowered = self._normalize_key_text(sentence)
+                mentions_npc = (
+                    (npc_name and npc_name in lowered)
+                    or (npc_race and npc_race in lowered)
+                    or any(token in lowered for token in [" woman", " girl", " she ", " her ", "herself"])
+                )
+                mentions_player_action = any(token in lowered for token in [" you ", " your ", "player"])
+                if mentions_npc and not mentions_player_action:
+                    self._append_npc_known_fact(npc, sentence)
+                    added += 1
+                    if added >= 2:
+                        break
+            seen.add(resolved)
+        self._normalize_npc_records()
+
     def _execute_single_command(self, command: Dict) -> Dict:
         """Execute a single validated command from the DM response."""
         if not isinstance(command, dict):
@@ -2349,10 +2804,17 @@ ONLY output the narrative + one JSON block. No extra text."""
         social_check = self._detect_social_check(player_input, turn_context)
         social_result = None
         if social_check.get("needs_social_check"):
+            social_target = self._ensure_npc_for_interaction(
+                social_check.get("target_npc"),
+                player_input=player_input,
+            )
+            if social_target:
+                social_check["target_npc"] = social_target
             social_result = self.process_social_interaction(
                 player_input=player_input,
                 target_npc=social_check["target_npc"],
-                interaction_type=social_check.get("interaction_type", "appeal")
+                interaction_type=social_check.get("interaction_type", "appeal"),
+                turn_context=turn_context,
             )
         skill_check = self._detect_skill_check(player_input, turn_context)
         skill_result = self._resolve_skill_check(skill_check)
@@ -2419,6 +2881,14 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "success": False,
                 "message": f"Command execution failed after DM response: {type(e).__name__}: {e}"
             }
+        self._reconcile_npcs_after_narration(
+            player_input=player_input,
+            narrative=narrative,
+            command=command,
+            social_check=social_check,
+            social_result=social_result,
+            npc_review=npc_review,
+        )
         # 5. Update conversation history
         self.conversation_manager.add_interaction(player_input, narrative)
         self.conversation_manager.append_story_exchange(player_input, narrative, command)
@@ -2525,6 +2995,9 @@ ONLY output the narrative + one JSON block. No extra text."""
         # Initialize new game state
         opening_scene = get_opening_scene_text()
         opening_scene_facts = get_opening_scene_facts()
+        opening_world = get_opening_world_state()
+        starting_location = opening_world.get("location") if isinstance(opening_world.get("location"), dict) else {}
+        starting_time = opening_world.get("time") if isinstance(opening_world.get("time"), dict) else {}
         self.game_state = {
             "schema_version": 1,
             "player": creation_result["character"],
@@ -2532,13 +3005,13 @@ ONLY output the narrative + one JSON block. No extra text."""
             "quests": {},
             "scenario": {
                 "opening_scene": {
-                    "title": "Your Awakening in Elyndor",
+                    "title": get_opening_scene_title(),
                     "text": opening_scene,
-                    "status": "awaiting_player_response",
+                    "status": get_opening_scene_status(),
                     "created_at": datetime.now().isoformat()
                 },
                 "current_scene": opening_scene,
-                "current_scene_source": "ai_opening_scene.py",
+                "current_scene_source": get_opening_scene_source(),
                 "scene_facts": opening_scene_facts
             },
             "world": {
@@ -2546,12 +3019,12 @@ ONLY output the narrative + one JSON block. No extra text."""
                     "settlement": "Caravan Road Ambush",
                     "region": "Forested River Road",
                     "coordinates": [0, 0]
-                },
+                } | starting_location,
                 "time": {
                     "day": 1,
                     "hour": 8,
                     "season": "spring"
-                }
+                } | starting_time
             },
             "game": {
                 "start_date": datetime.now().isoformat(),
@@ -2566,17 +3039,28 @@ ONLY output the narrative + one JSON block. No extra text."""
         
         # Reset conversation history
         self.conversation_manager = ConversationManager()
-        self.conversation_manager.summary = (
-            "The adventure begins at the opening crisis: the player has awakened "
-            "hidden on a forested slope above a caravan massacre, with a chained "
-            "wounded nekko woman nearby and demons below."
+        self.conversation_manager.summary = get_opening_campaign_summary()
+        try:
+            path_config.logs_dir.mkdir(parents=True, exist_ok=True)
+            self.conversation_manager.summary_file_path.write_text(
+                self.conversation_manager.summary + "\n",
+                encoding="utf-8",
             )
+            self.conversation_manager.story_file_path.write_text("", encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Failed to reset conversation files for new game: {e}")
+        location = self.game_state.get("world", {}).get("location", {})
+        starting_location = ", ".join(
+            str(location.get(key))
+            for key in ("settlement", "region")
+            if location.get(key)
+        )
         print("✅ New game started successfully!")
         return {
             "success": True,
             "message": "New game started successfully! Welcome to your adventure.",
             "character": creation_result["character"],
-            "starting_location": "Caravan Road Ambush, Forested River Road",
+            "starting_location": starting_location,
             "opening_scene": opening_scene
         }
     def continue_existing_game(self) -> Dict:
@@ -2673,15 +3157,22 @@ ONLY output the narrative + one JSON block. No extra text."""
         """Get current session token usage."""
         return self.api_manager.get_token_usage()
     def process_social_interaction(self, player_input: str, target_npc: str,
-                              interaction_type: str = "appeal") -> Dict[str, Any]:
+                              interaction_type: str = "appeal",
+                              turn_context: Optional[Dict[str, Any]] = None,
+                              narrative_brief: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process a social interaction with enhanced system"""
         try:
             # Determine difficulty based on context
             target_npc = self._resolve_npc_reference(target_npc) or target_npc
             difficulty = self._calculate_social_difficulty(player_input, target_npc)
+            story_context = self._build_shared_story_context(player_input, turn_context, narrative_brief)
             # Use enhanced social calculator
             result = self.social_calculator.resolve_social_interaction(
-                target_npc, interaction_type, player_input, difficulty
+                target_npc,
+                interaction_type,
+                player_input,
+                difficulty,
+                story_context=story_context,
             )
             # Log the interaction
             self._log_social_interaction(target_npc, player_input, result)

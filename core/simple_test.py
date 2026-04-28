@@ -7,8 +7,10 @@ import sys
 import os
 from pathlib import Path
 
-# Add the current directory to Python path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add the core directory to Python path for direct script execution.
+CORE_DIR = Path(__file__).resolve().parent
+if str(CORE_DIR) not in sys.path:
+    sys.path.insert(0, str(CORE_DIR))
 
 def test_components():
     """Test individual components"""

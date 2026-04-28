@@ -23,8 +23,8 @@ Normal Gameplay → Combat Initiation → Combat Loop → Combat Resolution → 
 - `combat_ui.js` - Combat-specific UI elements
 
 ### **Modified Files:**
-- `game_engine.py` - Add combat state handling
-- `api_integration.py` - Add combat-specific prompts
+- `core/game_engine.py` - Add combat state handling
+- `core/api_integration.py` - Add combat-specific prompts
 - `static/js/main.js` - Add combat UI toggles
 
 ## 🎭 Combat State Structure

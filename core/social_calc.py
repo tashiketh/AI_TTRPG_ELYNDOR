@@ -290,25 +290,8 @@ def _load_npc_data() -> Dict:
     return {"npcs": {}}
 
 def _save_npc_data(data: Dict):
-    """Save NPC data with backup."""
-    npc_file = path_config.references_dir / "npcs.json"
-    backup_path = path_config.backup_dir / f"npcs_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-
-    # Create backup
-    if npc_file.exists():
-        shutil.copy(npc_file, backup_path)
-
-        # Keep only 5 newest backups
-        backups = sorted(
-            path_config.backup_dir.glob("npcs_backup_*.json"),
-            key=os.path.getmtime,
-            reverse=True
-        )
-        for old in backups[5:]:
-            old.unlink()
-
-    with open(npc_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    """Reference NPC data is read-only; runtime social state is not persisted here."""
+    return None
 
 def get_relationship_history(npc_id: str) -> Dict:
     """

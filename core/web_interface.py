@@ -7,13 +7,20 @@ from werkzeug.serving import make_server
 import time
 import requests
 import traceback
+from path_config import path_config
 
 class WebInterface:
     def __init__(self, host="127.0.0.1", port=5000, open_browser=True):
         self.host = host
         self.port = port
         self.open_browser = open_browser
-        self.app = Flask(__name__, template_folder="templates", static_folder="static")
+        self.templates_dir = path_config.templates_dir
+        self.static_dir = path_config.static_dir
+        self.app = Flask(
+            __name__,
+            template_folder=str(self.templates_dir),
+            static_folder=str(self.static_dir),
+        )
         self.game_engine = None
         self.server_thread = None
         self.server = None
@@ -23,8 +30,8 @@ class WebInterface:
         self._setup_routes()
 
     def _create_directories(self):
-        Path("templates").mkdir(parents=True, exist_ok=True)
-        static = Path("static")
+        self.templates_dir.mkdir(parents=True, exist_ok=True)
+        static = self.static_dir
         static.mkdir(parents=True, exist_ok=True)
         (static / "css").mkdir(exist_ok=True)
         (static / "js").mkdir(exist_ok=True)
@@ -48,7 +55,7 @@ class WebInterface:
 
         @self.app.route("/static/<path:filename>")
         def serve_static(filename):
-            return send_from_directory("static", filename)
+            return send_from_directory(self.static_dir, filename)
 
         # ==================== API ROUTES ====================
         @self.app.route("/api/game_state")

@@ -77,11 +77,9 @@ def _load_npc_data() -> Dict:
     return {"npcs": {}}
 
 def _save_npc_data(data: Dict):
-    """Save NPC data with backup."""
-    _backup_npc_data()
+    """NPC reference data is read-only; live NPC state belongs in game_state.json."""
     npc_file = path_config.references_dir / "npcs.json"
-    with open(npc_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    path_config.assert_not_reference_write(npc_file)
 
 def _generate_unique_npc_id(name: str) -> str:
     """Generate a unique NPC ID based on name."""

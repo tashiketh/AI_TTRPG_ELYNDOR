@@ -17,18 +17,18 @@ The system will:
 ### Option 2: Manual Character Creation
 Run the character creator directly:
 ```bash
-python new_game_creator.py
+python core/new_game_creator.py
 ```
 
 Then start the game:
 ```bash
-python game_engine.py
+python core/run_game_server.py
 ```
 
 ### Option 3: Quick Test
 Test just the character creation without starting the game:
 ```bash
-python character_creation_sequence.py
+python core/character_creation_sequence.py
 ```
 
 ## 📝 New Game Creation Process

@@ -19,12 +19,16 @@
                 <div class="dm-output" id="dmOutput">
                     <div id="outputContent">Welcome, adventurer. What would you like to do?</div>
                 </div>
+                <div class="last-player-action" id="lastPlayerAction">
+                    <div class="last-player-label">Last Input</div>
+                    <div class="last-player-text" id="lastPlayerText">No action yet.</div>
+                </div>
                 <div class="player-input">
                     <textarea id="playerInput" placeholder="Describe your action..."></textarea>
-                    <div class="input-buttons">
-                        <button onclick="submitAction()">Submit</button>
-                        <button onclick="clearInput()">Clear</button>
-                    </div>
+                    <button id="submitActionButton" class="submit-action-button" onclick="submitAction()" aria-label="Submit action">
+                        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                        <span>Submit</span>
+                    </button>
                 </div>
             </div>
 

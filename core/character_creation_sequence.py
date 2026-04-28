@@ -9,8 +9,10 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-# Add the current directory to Python path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add the core directory to Python path for direct script execution.
+CORE_DIR = Path(__file__).resolve().parent
+if str(CORE_DIR) not in sys.path:
+    sys.path.insert(0, str(CORE_DIR))
 from character_creation import CharacterCreator, GUIDED_CREATION_QUESTIONS
 from api_integration import APIManager
 
