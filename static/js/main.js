@@ -121,18 +121,13 @@ function renderOpeningScene(gameState) {
     if (!output) return;
     const scenario = gameState.scenario || {};
     const opening = scenario.opening_scene || {};
-    const resume = gameState.resume_context || {};
-    const resumeText = resume.last_dm_narrative || '';
-    const sceneText = resumeText || scenario.current_scene || opening.text;
+    const sceneText = scenario.current_scene || opening.text;
     if (!sceneText) return;
     const defaultText = 'Welcome, adventurer. What would you like to do?';
     const alreadyRendered = output.dataset.openingSceneRendered === 'true';
     if (alreadyRendered || output.textContent.trim() !== defaultText) return;
     output.textContent = '';
-    appendTranscriptLine(output, 'DM', sceneText, resumeText ? 'resume-scene-line' : 'opening-scene-line');
-    if (resume.last_player_input) {
-        updateLastPlayerInput(resume.last_player_input);
-    }
+    appendTranscriptLine(output, 'DM', sceneText, 'opening-scene-line');
     output.dataset.openingSceneRendered = 'true';
 }
 // Player Character Sheet - Two Column Layout
@@ -153,14 +148,19 @@ function updateCharacterSheet(player) {
         <div class="player-sheet">
             <div class="player-header">
                 <div class="player-title">
-                    <h2>${id.name || 'Aburi'}</h2>
+                    <h2>${id.name || 'Your_name_here'}</h2>
                     <p class="subtitle">${(id.race || 'Human').toUpperCase()} • ${id.class_theme || 'Isekai Adventurer'}</p>
                     <p class="background">${id.background || 'A former database analyst pulled into Elyndor.'}</p>
                 </div>
-                <div class="player-portrait">
+                <div class="player-portrait" id="playerPortraitContainer">
                     <img src="/static/images/${id.name}.png" 
-                         onerror="this.src='/static/images/default-character.png'" 
-                         alt="${id.name}">
+                        alt="${id.name}"
+                        style="display: none;"
+                        onerror="handleMissingPortrait(this, '${id.name || 'Your_name_here'}')">
+                    <div class="image-note" id="playerPortraitNote">
+                        Save your character image as:<br>
+                        <strong>./static/images/${id.name || 'Your_name_here'}.png</strong>
+                    </div>
                 </div>
             </div>
 
@@ -396,14 +396,26 @@ function showPartyMember(npc) {
             <!-- Right Column: Portrait -->
             <div class="character-portrait">
                 <img src="/static/images/${npc.name}.png" 
-                     onerror="this.src='/static/images/${npc.name}.jpg'; this.onerror=null;"
-                     alt="${npc.name}"
-                     class="character-portrait-img">
+                    alt="${npc.name}"
+                    class="character-portrait-img"
+                    style="display: none;"
+                    onerror="handleMissingPortrait(this, '${npc.name}')">
+                <div class="image-note" style="display:block; margin-top:10px;">
+                    Save character image as:<br>
+                    <strong>./static/images/${npc.name}.png</strong>
+                </div>
             </div>
         </div>
     `;
     container.innerHTML = html;
     if (tabName === 'quests') {
         loadQuests();
+    }
+}
+function handleMissingPortrait(img, name) {
+    img.style.display = 'none';
+    const note = document.getElementById('playerPortraitNote');
+    if (note) {
+        note.style.display = 'block';
     }
 }
