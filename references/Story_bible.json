@@ -1,0 +1,80 @@
+{
+  "title": "Elyndor - Story Bible",
+  "version": "1.0",
+  "last_updated": "2026-04-28",
+
+  "core_premise": {
+    "summary": "Harsh, grounded dark-fantasy world. Magic is dangerous and personal. Mana is finite. Slavery is legal and common. Actions have lasting consequences.",
+    "tone": ["gritty", "consequential", "simulationist"],
+    "dominant_race": "Humans",
+    "major_event": "Demon Invasion (18 months ago)"
+  },
+
+  "world": {
+    "calendar": "Dynastic Year 105 of House Vaelor",
+    "region": "River Marches",
+    "description": "Fertile kingdom with rivers, forests, and rolling ridges. Trade flows along the great river."
+  },
+
+  "magic": {
+    "summary": "Tag-based spell system. Spells have complexity, MP cost, and risk. Research and invention are possible but dangerous.",
+    "key_rule": "Mana is a finite personal resource that must be carefully managed."
+  },
+
+  "demon_invasion": {
+    "summary": "Occurred 18 months ago. Rift sealed with elven help. Scattered warbands remain.",
+    "physiology": {
+      "common": ["Digitigrade legs", "2.2–3m tall", "Leathery/scaled skin", "Superior night vision"],
+      "low_caste": "Four arms, brutish warriors",
+      "high_caste": "Two arms, wings, intelligent, often spellcasters"
+    }
+  },
+
+  "races": {
+    "human": {
+      "summary": "Dominant race by population. Pragmatic, bureaucratic, expansionist. Control most kingdoms and trade.",
+      "slavery": "Legal and widespread"
+    },
+    "elf": {
+      "summary": "Reclusive, magically powerful. Helped seal the rift.",
+      "relations": "Cool but functional with humans"
+    },
+    "dwarf": {
+      "summary": "Reclusive mountain dwellers. Valued for machining and metallurgy.",
+      "relations": "Strong trade partners with humans"
+    },
+    "beastkin": {
+      "summary": "Distrusted after short-lived alliance with demons.",
+      "nekko": "Human-like with animal ears/tail/claws. Frequently enslaved.",
+      "true_beastkin": "More feral/animalistic features."
+    }
+  },
+
+  "slavery": {
+    "summary": "Legal across all races. Two main categories.",
+    "types": {
+      "red_tattoo": "Prisoners / War slaves / Demon victims - Lifetime slavery. Enchanted mark glows steady red.",
+      "blue_tattoo": "Indentured servants - Can buy freedom. Simple ink tattoo."
+    }
+  },
+
+  "key_locations": {
+    "river_marches": {
+      "daejon": "Regional hub and major Adventurers’ Guild outpost",
+      "river_road": "Main north-south trade route",
+      "haversford": "Small fortified town ~1 day north",
+      "northern_territories": "Active demon remnant zone"
+    }
+  },
+
+  "factions": {
+    "adventurers_guild": "Semi-independent mercenary network handling monsters and border threats",
+    "human_kingdom": "Bureaucratic, river-trade focused, slavery legal"
+  },
+
+  "keywords": {
+    "slavery": ["red tattoo", "blue tattoo", "slave mark", "enchanted tattoo"],
+    "demons": ["rift", "low-caste", "high-caste", "warband"],
+    "races": ["nekko", "beastkin", "human", "elf", "dwarf"]
+  }
+}

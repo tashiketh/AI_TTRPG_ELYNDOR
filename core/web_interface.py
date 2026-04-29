@@ -8,9 +8,16 @@ import time
 import requests
 import traceback
 from path_config import path_config
+from game_config import game_config
+
+
+WEB_DEFAULT_PORT = game_config.int("web.default_port", 5000, min_value=1, max_value=65535)
+WEB_BROWSER_OPEN_DELAY_SECONDS = game_config.float("web.browser_open_delay_seconds", 2, min_value=0.0)
+WEB_SHUTDOWN_REQUEST_TIMEOUT_SECONDS = game_config.float("web.shutdown_request_timeout_seconds", 2, min_value=0.1)
+WEB_SHUTDOWN_JOIN_TIMEOUT_SECONDS = game_config.float("web.shutdown_join_timeout_seconds", 3, min_value=0.1)
 
 class WebInterface:
-    def __init__(self, host="127.0.0.1", port=5000, open_browser=True):
+    def __init__(self, host="127.0.0.1", port=WEB_DEFAULT_PORT, open_browser=True):
         self.host = host
         self.port = port
         self.open_browser = open_browser
@@ -62,7 +69,12 @@ class WebInterface:
         def get_game_state():
             if not self.game_engine:
                 return jsonify({"error": "Game engine not available"}), 500
-            return jsonify(self.game_engine.get_game_state())
+            state = self.game_engine.get_game_state()
+            if isinstance(state, dict):
+                state = dict(state)
+                if hasattr(self.game_engine, "get_resume_context"):
+                    state["resume_context"] = self.game_engine.get_resume_context()
+            return jsonify(state)
 
         @self.app.route("/api/combat_state")
         def get_combat_state():
@@ -137,7 +149,7 @@ class WebInterface:
         self.server_thread = threading.Thread(target=run_server, daemon=False)
         self.server_thread.start()
 
-        time.sleep(2)
+        time.sleep(WEB_BROWSER_OPEN_DELAY_SECONDS)
         if self.open_browser:
             webbrowser.open(f"http://{self.host}:{self.port}")
 
@@ -152,7 +164,10 @@ class WebInterface:
             try:
                 # Try graceful shutdown
                 try:
-                    requests.get(f"http://{self.host}:{self.port}/shutdown", timeout=2)
+                    requests.get(
+                        f"http://{self.host}:{self.port}/shutdown",
+                        timeout=WEB_SHUTDOWN_REQUEST_TIMEOUT_SECONDS,
+                    )
                 except:
                     pass
                 
@@ -162,7 +177,7 @@ class WebInterface:
                 
                 # Wait for thread
                 if self.server_thread:
-                    self.server_thread.join(timeout=3)
+                    self.server_thread.join(timeout=WEB_SHUTDOWN_JOIN_TIMEOUT_SECONDS)
                 
                 self.running = False
                 print("   Web server stopped")

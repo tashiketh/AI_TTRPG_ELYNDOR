@@ -6,13 +6,16 @@ import shutil
 from datetime import datetime
 from typing import Dict, Any, List
 from path_config import path_config
+from game_config import game_config
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 GAME_STATE_PATH = path_config.game_state_path
 MAP_PATH = path_config.combat_map_path
 BACKUP_DIR = path_config.backup_dir
 
-GRID_SCALE_METERS = 1   # Each cell = 1 meter
+GRID_SCALE_METERS = game_config.float("map.grid_scale_meters", 1, min_value=0.1)
+DEFAULT_MAP_WIDTH = game_config.int("map.default_width", 10, min_value=1)
+DEFAULT_MAP_HEIGHT = game_config.int("map.default_height", 10, min_value=1)
 
 # ── Helper: atomic backup + save ───────────────────────────────────────────────
 def _backup_and_save_map(map_data: Dict):
@@ -52,8 +55,8 @@ def _save_map(map_data: Dict):
 
 # ── Core functions ─────────────────────────────────────────────────────────────
 def initialize_combat_map(
-    width: int = 10,
-    height: int = 10,
+    width: int = DEFAULT_MAP_WIDTH,
+    height: int = DEFAULT_MAP_HEIGHT,
     terrain: str = ".",
     metadata: Dict = None
 ) -> Dict:
@@ -280,8 +283,8 @@ def execute_map_command(command: Dict) -> Dict:
 
     if action == "initialize":
         return initialize_combat_map(
-            width=command.get("width", 10),
-            height=command.get("height", 10),
+            width=command.get("width", DEFAULT_MAP_WIDTH),
+            height=command.get("height", DEFAULT_MAP_HEIGHT),
             terrain=command.get("terrain", "."),
             metadata=command.get("metadata", {})
         )

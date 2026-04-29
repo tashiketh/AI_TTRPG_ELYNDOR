@@ -347,23 +347,6 @@ class EnhancedSocialCalculator:
                 # Update mood based on emotional response
                 self._set_npc_field(npc_data, "mood", interaction_result["npc_reaction"]["mood"])
 
-                # Add to interaction history
-                interaction_history = self._get_npc_field(npc_data, "interaction_history", [])
-                if not isinstance(interaction_history, list):
-                    interaction_history = []
-
-                interaction_history.append({
-                    "timestamp": interaction_result["metadata"]["timestamp"],
-                    "type": interaction_result["metadata"]["interaction_type"],
-                    "player_action": interaction_result["metadata"].get("player_action", ""),
-                    "old_trust": current_trust,
-                    "new_trust": self._get_npc_field(npc_data, "trust", 0),
-                    "old_relationship": interaction_result["social_result"].get("old_relationship", ""),
-                    "new_relationship": self._get_npc_field(npc_data, "relationship", interaction_result["social_result"].get("new_relationship", "neutral")),
-                    "mood": interaction_result["social_result"]["emotional_response"]
-                })
-                self._set_npc_field(npc_data, "interaction_history", interaction_history)
-
                 # Save updated game state
                 with open(game_state_path, "w", encoding="utf-8") as f:
                     json.dump(game_state, f, indent=4)

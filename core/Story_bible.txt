@@ -64,3 +64,13 @@ Daejon: Regional hub and major Adventurers’ Guild outpost (recently departed).
 River Road: Main north-south trade artery.
 Haversford: Small fortified town roughly one day’s travel north — likely next major stop.
 Northern Territories: Active demon remnant zone and former rift location (now sealed).
+
+6. Additional information
+Slavery: 
+All races take slaves, and they fall into different categories:
+Prisoners: criminals or those taken in war are marked with a red tattoo and are considered slaves for life. These tattoos are enchanted to glow with a steady red light to make it harder to remove or hide.
+Indentured Servants: People who sell themselves or their own children are marked with a blue tattoo and can buy their freedom.
+Demon victims: Demons aggressively hunt all other races to enslave and mark all their captives with red slave tattoos. 
+Isekai: 
+The only creatures known to travel between worlds are the demons. 
+The only people in this world that are aware of other worlds are researchers and mages.

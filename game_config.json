@@ -1,0 +1,480 @@
+{
+  "schema_version": 1,
+  "notes": [
+    "Runtime tuning file for the game engine. Each setting uses value as the active value.",
+    "default records the code-safe fallback. If a setting is missing or invalid, the engine uses its built-in default.",
+    "used_by lists the routines most directly affected by the setting."
+  ],
+  "conversation": {
+    "max_history": {
+      "value": 4,
+      "default": 4,
+      "note": "Maximum player/DM exchanges retained in ConversationManager.history and restored from story_transcript.md.",
+      "used_by": [
+        "core.game_engine.ConversationManager.get_recent_exchanges",
+        "core.game_engine.ConversationManager.add_interaction",
+        "core.game_engine.ConversationManager._parse_story_transcript"
+      ]
+    },
+    "summary_update_interval": {
+      "value": 3,
+      "default": 3,
+      "note": "Number of recent exchanges used by the legacy in-memory summary builder.",
+      "used_by": [
+        "core.game_engine.ConversationManager._update_summary"
+      ]
+    }
+  },
+  "npc_memory": {
+    "max_fact_count": {
+      "value": 8,
+      "default": 8,
+      "note": "Maximum concise known_facts retained per NPC after categorization and stale-fact replacement.",
+      "used_by": [
+        "core.game_engine.GameEngine._sanitize_known_facts_value",
+        "core.game_engine.GameEngine._append_npc_known_fact"
+      ]
+    },
+    "max_fact_chars": {
+      "value": 180,
+      "default": 180,
+      "note": "Maximum characters retained for one NPC known fact.",
+      "used_by": [
+        "core.game_engine.GameEngine._sanitize_known_fact_text"
+      ]
+    }
+  },
+  "api": {
+    "call_delay_seconds": {
+      "value": 1.2,
+      "default": 1.2,
+      "note": "Delay before live API calls. API_CALL_DELAY_SECONDS environment variable still overrides this.",
+      "used_by": [
+        "core.api_integration.APIManager._resolve_call_delay",
+        "core.api_integration.APIManager.delay_before_call"
+      ]
+    },
+    "live_timeout_seconds": {
+      "value": 30,
+      "default": 30,
+      "note": "HTTP timeout for structured APIManager chat-completion calls.",
+      "used_by": [
+        "core.api_integration.APIManager.call_api"
+      ]
+    },
+    "dm_timeout_seconds": {
+      "value": 40,
+      "default": 40,
+      "note": "HTTP timeout for the direct DM narration call.",
+      "used_by": [
+        "core.game_engine.GameEngine._call_mistral_api"
+      ]
+    },
+    "max_cache_size": {
+      "value": 50,
+      "default": 50,
+      "note": "Maximum structured API responses cached during one session.",
+      "used_by": [
+        "core.api_integration.APIManager.__init__",
+        "core.api_integration.APIManager.call_api"
+      ]
+    },
+    "call_history_limit": {
+      "value": 100,
+      "default": 100,
+      "note": "Maximum API call metric entries retained in memory.",
+      "used_by": [
+        "core.api_integration.APIManager._log_api_call"
+      ]
+    },
+    "context_max_tokens": {
+      "value": 1000,
+      "default": 1000,
+      "note": "Nominal token budget for APIManager context optimization.",
+      "used_by": [
+        "core.api_integration.APIManager._optimize_context"
+      ]
+    },
+    "optimized_interaction_history_limit": {
+      "value": 3,
+      "default": 3,
+      "note": "Maximum interaction_history items retained during APIManager context optimization.",
+      "used_by": [
+        "core.api_integration.APIManager._optimize_context"
+      ]
+    },
+    "default_max_tokens": {
+      "value": 500,
+      "default": 500,
+      "note": "Default max_tokens for structured model calls when a routine does not pass a more specific value.",
+      "used_by": [
+        "core.api_integration.APIManager.call_api"
+      ]
+    }
+  },
+  "model_calls": {
+    "dm_temperature": {
+      "value": 0.75,
+      "default": 0.75,
+      "note": "Temperature for final DM narration.",
+      "used_by": [
+        "core.game_engine.GameEngine._call_mistral_api"
+      ]
+    },
+    "dm_max_tokens": {
+      "value": 1200,
+      "default": 1200,
+      "note": "Maximum response tokens for final DM narration.",
+      "used_by": [
+        "core.game_engine.GameEngine._call_mistral_api"
+      ]
+    },
+    "turn_context_temperature": {
+      "value": 0.1,
+      "default": 0.1,
+      "note": "Temperature for turn context evaluation.",
+      "used_by": [
+        "core.game_engine.GameEngine._evaluate_turn_context"
+      ]
+    },
+    "turn_context_max_tokens": {
+      "value": 700,
+      "default": 700,
+      "note": "Maximum response tokens for turn context evaluation.",
+      "used_by": [
+        "core.game_engine.GameEngine._evaluate_turn_context"
+      ]
+    },
+    "dc_evaluation_temperature": {
+      "value": 0.1,
+      "default": 0.1,
+      "note": "Temperature for DC fact-modifier evaluation.",
+      "used_by": [
+        "core.game_engine.GameEngine._evaluate_dc"
+      ]
+    },
+    "dc_evaluation_max_tokens": {
+      "value": 800,
+      "default": 800,
+      "note": "Maximum response tokens for DC fact-modifier evaluation.",
+      "used_by": [
+        "core.game_engine.GameEngine._evaluate_dc"
+      ]
+    },
+    "social_detection_temperature": {
+      "value": 0.1,
+      "default": 0.1,
+      "note": "Temperature for social check detection.",
+      "used_by": [
+        "core.game_engine.GameEngine._detect_social_check"
+      ]
+    },
+    "skill_detection_temperature": {
+      "value": 0.1,
+      "default": 0.1,
+      "note": "Temperature for skill check detection.",
+      "used_by": [
+        "core.game_engine.GameEngine._detect_skill_check"
+      ]
+    },
+    "narrative_brief_temperature": {
+      "value": 0.15,
+      "default": 0.15,
+      "note": "Temperature for compact narrative brief generation.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_narrative_brief"
+      ]
+    },
+    "narrative_brief_max_tokens": {
+      "value": 500,
+      "default": 500,
+      "note": "Maximum response tokens for compact narrative brief generation.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_narrative_brief"
+      ]
+    },
+    "npc_review_temperature": {
+      "value": 0.45,
+      "default": 0.45,
+      "note": "Temperature for NPC action review.",
+      "used_by": [
+        "core.game_engine.GameEngine._review_npc_actions"
+      ]
+    },
+    "npc_review_max_tokens": {
+      "value": 900,
+      "default": 900,
+      "note": "Maximum response tokens for NPC action review.",
+      "used_by": [
+        "core.game_engine.GameEngine._review_npc_actions"
+      ]
+    },
+    "turn_summary_temperature": {
+      "value": 0.2,
+      "default": 0.2,
+      "note": "Temperature for one-line turn summary generation.",
+      "used_by": [
+        "core.game_engine.GameEngine._summarize_turn"
+      ]
+    },
+    "turn_summary_max_tokens": {
+      "value": 250,
+      "default": 250,
+      "note": "Maximum response tokens for one-line turn summary generation.",
+      "used_by": [
+        "core.game_engine.GameEngine._summarize_turn"
+      ]
+    }
+  },
+  "dm_narration": {
+    "min_paragraphs": {
+      "value": 2,
+      "default": 2,
+      "note": "Minimum narrative paragraphs before the final JSON command block.",
+      "used_by": [
+        "core.game_engine.GameEngine._call_mistral_api",
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "max_paragraphs": {
+      "value": 3,
+      "default": 3,
+      "note": "Maximum narrative paragraphs before the final JSON command block.",
+      "used_by": [
+        "core.game_engine.GameEngine._call_mistral_api",
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "response_hook_count": {
+      "value": 1,
+      "default": 1,
+      "note": "Number of clear player response opportunities the DM narration should present before stopping.",
+      "used_by": [
+        "core.game_engine.GameEngine._call_mistral_api",
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "prose_heat": {
+      "value": 1,
+      "default": 1,
+      "note": "Controls DM prose intensity on a 0-5 scale: 0 plain/referee, 1 grounded, 2 restrained novel prose, 3 atmospheric, 4 lyrical, 5 ornate.",
+      "used_by": [
+        "core.game_engine.GameEngine._dm_prose_style_rules",
+        "core.game_engine.GameEngine._call_mistral_api",
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    }
+  },
+  "prompt_context": {
+    "compact_text_chars": {
+      "value": 1200,
+      "default": 1200,
+      "note": "Default character cap for compacting free text before prompt use.",
+      "used_by": [
+        "core.game_engine.GameEngine._compact_text"
+      ]
+    },
+    "compact_list_items": {
+      "value": 8,
+      "default": 8,
+      "note": "Default number of list items retained when compacting lists for prompts.",
+      "used_by": [
+        "core.game_engine.GameEngine._compact_list_text"
+      ]
+    },
+    "compact_list_chars": {
+      "value": 220,
+      "default": 220,
+      "note": "Default character cap for each compacted list item.",
+      "used_by": [
+        "core.game_engine.GameEngine._compact_list_text"
+      ]
+    },
+    "recent_exchange_limit": {
+      "value": 4,
+      "default": 4,
+      "note": "Default number of recent exchanges exposed to non-DM prompt packets.",
+      "used_by": [
+        "core.game_engine.GameEngine._compact_recent_exchanges",
+        "core.game_engine.GameEngine._build_turn_evaluation_context",
+        "core.game_engine.GameEngine._build_shared_story_context"
+      ]
+    },
+    "recent_player_chars": {
+      "value": 420,
+      "default": 420,
+      "note": "Default character cap for each recent player input in prompt history.",
+      "used_by": [
+        "core.game_engine.GameEngine._compact_recent_exchanges"
+      ]
+    },
+    "recent_dm_chars": {
+      "value": 700,
+      "default": 700,
+      "note": "Default character cap for each recent DM response in prompt history.",
+      "used_by": [
+        "core.game_engine.GameEngine._compact_recent_exchanges"
+      ]
+    },
+    "opening_scene_chars": {
+      "value": 1800,
+      "default": 1800,
+      "note": "Character cap for opening scene context supplied to prompts.",
+      "used_by": [
+        "core.game_engine.GameEngine._opening_scene_context"
+      ]
+    },
+    "story_bible_excerpt_chars": {
+      "value": 900,
+      "default": 900,
+      "note": "Default character cap for relevant Story_bible excerpt in prompt packets.",
+      "used_by": [
+        "core.game_engine.GameEngine._story_bible_excerpt",
+        "core.game_engine.GameEngine._build_turn_evaluation_context",
+        "core.game_engine.GameEngine._build_shared_story_context"
+      ]
+    },
+    "runtime_story_bible_excerpt_chars": {
+      "value": 700,
+      "default": 700,
+      "note": "Smaller Story_bible excerpt cap for detection/review prompts that already have turn context.",
+      "used_by": [
+        "core.game_engine.GameEngine._detect_social_check",
+        "core.game_engine.GameEngine._detect_skill_check",
+        "core.game_engine.GameEngine._review_npc_actions"
+      ]
+    },
+    "scene_context_chars": {
+      "value": 900,
+      "default": 900,
+      "note": "Character cap for current scene context in prompt packets.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_turn_evaluation_context",
+        "core.game_engine.GameEngine._build_shared_story_context",
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "scene_brief_chars": {
+      "value": 700,
+      "default": 700,
+      "note": "Character cap for narrative scene briefs.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_shared_story_context",
+        "core.game_engine.GameEngine._fallback_narrative_brief",
+        "core.game_engine.GameEngine._sanitize_narrative_brief"
+      ]
+    },
+    "brief_token_budget": {
+      "value": 900,
+      "default": 900,
+      "note": "Approximate token budget for sanitized narrative briefs.",
+      "used_by": [
+        "core.game_engine.GameEngine._sanitize_narrative_brief"
+      ]
+    },
+    "dm_recent_exchange_limit": {
+      "value": 2,
+      "default": 2,
+      "note": "Number of recent exchanges included directly in the final DM prompt.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "dm_recent_player_chars": {
+      "value": 220,
+      "default": 220,
+      "note": "Character cap for recent player inputs in the final DM prompt.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "dm_recent_dm_chars": {
+      "value": 320,
+      "default": 320,
+      "note": "Character cap for recent DM responses in the final DM prompt.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "dm_summary_chars": {
+      "value": 600,
+      "default": 600,
+      "note": "Character cap for campaign summary in the final DM prompt.",
+      "used_by": [
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    }
+  },
+  "web": {
+    "default_port": {
+      "value": 5000,
+      "default": 5000,
+      "note": "Default local web server port.",
+      "used_by": [
+        "core.game_engine.GameEngine.__init__",
+        "core.web_interface.WebInterface.__init__",
+        "core.run_game_server.main"
+      ]
+    },
+    "engine_startup_wait_seconds": {
+      "value": 3,
+      "default": 3,
+      "note": "Seconds GameEngine waits after launching the web interface thread.",
+      "used_by": [
+        "core.game_engine.GameEngine.__init__"
+      ]
+    },
+    "browser_open_delay_seconds": {
+      "value": 2,
+      "default": 2,
+      "note": "Seconds WebInterface waits before opening the browser.",
+      "used_by": [
+        "core.web_interface.WebInterface.start_server"
+      ]
+    },
+    "shutdown_request_timeout_seconds": {
+      "value": 2,
+      "default": 2,
+      "note": "Timeout for the graceful /shutdown HTTP request.",
+      "used_by": [
+        "core.web_interface.WebInterface.stop_server"
+      ]
+    },
+    "shutdown_join_timeout_seconds": {
+      "value": 3,
+      "default": 3,
+      "note": "Thread join timeout during web server shutdown.",
+      "used_by": [
+        "core.web_interface.WebInterface.stop_server"
+      ]
+    }
+  },
+  "map": {
+    "grid_scale_meters": {
+      "value": 1,
+      "default": 1,
+      "note": "Meters represented by each combat-map cell.",
+      "used_by": [
+        "core.map_tools.GRID_SCALE_METERS"
+      ]
+    },
+    "default_width": {
+      "value": 10,
+      "default": 10,
+      "note": "Default combat-map width in grid cells.",
+      "used_by": [
+        "core.map_tools.initialize_combat_map",
+        "core.map_tools.execute_map_command"
+      ]
+    },
+    "default_height": {
+      "value": 10,
+      "default": 10,
+      "note": "Default combat-map height in grid cells.",
+      "used_by": [
+        "core.map_tools.initialize_combat_map",
+        "core.map_tools.execute_map_command"
+      ]
+    }
+  }
+}

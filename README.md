@@ -4,7 +4,6 @@
 Experience dynamic storytelling powered by Mistral AI while playing through a full-featured TTRPG system.
 
 > **Note:** This project is currently in active development. The world is temporarily called **Elyndor** until a more fitting name is chosen.
-> **Current Significant Flaws:** While this is a robust system, it uses multiple API calls. This uses a lot of tokens and time. Most of the tokens go to small and lightweight models, and about 3~6k per prompt goes to the main narration model. This may be an issue for many people.
 
 ---
 
@@ -63,7 +62,6 @@ Experience dynamic storytelling powered by Mistral AI while playing through a fu
 - Begin your adventure with an AI-generated opening scene
 - Interact using natural language
 - The AI DM responds dynamically to your actions in combat, dialogue, exploration, and more
-- If you want to play your own custom story, edit core\Story_bible.txt and references\opening_scene.json
 
 ---
 

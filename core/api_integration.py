@@ -11,6 +11,7 @@ except ImportError:
     requests = None
 from pathlib import Path
 from path_config import path_config
+from game_config import game_config
 import logging
 import os
 
@@ -22,7 +23,13 @@ TOKEN_USAGE_FILE_NAME = "token_usage.json"
 DEBUG_PROMPT_FILE_NAME = "last_api_prompt_debug.json"
 DEBUG_PROMPT_BY_TYPE_TEMPLATE = "last_api_prompt_{prompt_type}.json"
 DEBUG_RESPONSE_BY_TYPE_TEMPLATE = "last_api_response_{prompt_type}.json"
-DEFAULT_API_CALL_DELAY_SECONDS = 1.2
+DEFAULT_API_CALL_DELAY_SECONDS = game_config.float("api.call_delay_seconds", 1.2, min_value=0.0)
+API_LIVE_TIMEOUT_SECONDS = game_config.float("api.live_timeout_seconds", 30, min_value=1)
+API_MAX_CACHE_SIZE = game_config.int("api.max_cache_size", 50, min_value=1)
+API_CALL_HISTORY_LIMIT = game_config.int("api.call_history_limit", 100, min_value=1)
+API_CONTEXT_MAX_TOKENS = game_config.int("api.context_max_tokens", 1000, min_value=1)
+API_OPTIMIZED_INTERACTION_HISTORY_LIMIT = game_config.int("api.optimized_interaction_history_limit", 3, min_value=0)
+API_DEFAULT_MAX_TOKENS = game_config.int("api.default_max_tokens", 500, min_value=1)
 DEFAULT_CONTEXT_MODEL = "mistral-small-latest"
 DEFAULT_NPC_MODEL = "mistral-large-latest"
 DEFAULT_DM_MODEL = "mistral-large-latest"
@@ -45,7 +52,7 @@ class APIManager:
         self.model = model or os.getenv("MISTRAL_MODEL", self.context_model)
         self.call_history = []
         self.response_cache = {}
-        self.max_cache_size = 50
+        self.max_cache_size = API_MAX_CACHE_SIZE
         self.cache_hits = 0
         self.call_delay_seconds = self._resolve_call_delay(call_delay_seconds)
         self.session_id = datetime.now().strftime("%Y%m%dT%H%M%S")
@@ -67,7 +74,10 @@ class APIManager:
         if call_delay_seconds is not None:
             return max(0.0, float(call_delay_seconds))
         try:
-            return max(0.0, float(os.getenv("API_CALL_DELAY_SECONDS", DEFAULT_API_CALL_DELAY_SECONDS)))
+            return max(0.0, float(os.getenv(
+                "API_CALL_DELAY_SECONDS",
+                game_config.float("api.call_delay_seconds", DEFAULT_API_CALL_DELAY_SECONDS, min_value=0.0),
+            )))
         except ValueError:
             return DEFAULT_API_CALL_DELAY_SECONDS
 
@@ -91,37 +101,43 @@ class APIManager:
     def _get_default_prompts(self) -> Dict[str, str]:
         """Return default system prompts if file loading fails"""
         return {
-            "narrative_generation": """Return only JSON: {"narrative":"2-4 concise dark-fantasy sentences"}.""",
+            "narrative_generation": """Return only JSON: {"narrative":"2-4 concise dark-fantasy sentences"}.
+Apply story_context.knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.""",
 
             "dialogue_generation": """You are an NPC in a dark fantasy world.
             Respond with personality-appropriate dialogue that matches the NPC's voice style.
-            Keep responses concise (1-3 sentences) and in character.""",
+            Keep responses concise (1-3 sentences) and in character.
+            Apply story_context.knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.""",
 
             "social_check_detection": """Return only JSON with this shape:
 {"needs_social_check":false,"target_npc":"","interaction_type":"appeal","reason":"short reason"}
 
 Set needs_social_check true whenever the player tries to influence, comfort, persuade, deceive, threaten, bargain with, question, recruit, calm, or request something from a specific NPC.
+Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
 Do not include markdown or prose.""",
             
 
             "npc_action_review": """You review each NPC's immediate action separately from DM narration.
+            Apply story_context.knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
             Return JSON with npc_actions, where each action has npc_id, name, action, dialogue, body_language, and constraints.""",
 
             "turn_context_evaluation": """Return only JSON with this shape:
 {"involved_npcs":[],"relevant_races":[],"likely_intent":"","mechanical_risks":[],"continuity_constraints":[],"forbidden_assumptions":[],"scene_focus":"","relevant_lore_keys":[]}
 
-Select only context that matters for this turn. Do not narrate.""",
+Select only context that matters for this turn. Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last. Do not narrate.""",
 
             "narrative_brief": """Return only JSON with this shape:
 {"scene_brief":"","relevant_lore":[],"active_npcs":[],"mechanical_constraints":{},"continuity_constraints":[],"forbidden_assumptions":[]}
 
 Build a compact brief for the NPC narrator and DM. Include only facts that affect this turn.
+Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
 active_npcs must only include recurring NPCs from known_npcs; never include the player, mobs, enemies, victims, or reference-library characters.""",
 
             "skill_check_detection": """Return only JSON with this shape:
 {"needs_skill_check":false,"skill":"","stats_used":[],"difficulty_class":0,"reason":"short reason","stakes":""}
 
 Use a skill check whenever success is uncertain and failure matters: stealth, searching, tracking, medicine, survival, crafting, athletics, investigation, magic, tools, or perception.
+Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
 Pick varied DCs: 15 trivial, 25 very easy, 35 easy, 45 moderate-low, 55 moderate-high, 65 difficult, 80 very hard, 95 extreme.
 Do not default to 50. Use 50 only if the situation is truly average.
 Do not include markdown or prose.""",
@@ -129,9 +145,10 @@ Do not include markdown or prose.""",
             "dc_evaluation": """Return only strict JSON with this shape:
 {"base_dc":50,"candidate_modifiers":[{"fact":"","category":"","scope":"","effect":"helps","modifier":0,"relevance":0,"reason":""}],"notes":""}
 
-Use only the compact referee packet provided. effect "helps" must use a negative modifier, effect "hurts" must use a positive modifier, and effect "neutral" must use 0. Never use a plus sign in JSON numbers; write 2, not +2. Most facts should be 0, 1, 2, -1, or -2. Use 5+ only for significant factors, 10+ for major factors, and 20 only for overwhelming factors. Do not compute the final DC; Python will apply only the top 3 positive and top 3 negative modifiers.""",
+Use only the compact referee packet provided. Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last. effect "helps" must use a negative modifier, effect "hurts" must use a positive modifier, and effect "neutral" must use 0. Never use a plus sign in JSON numbers; write 2, not +2. Most facts should be 0, 1, 2, -1, or -2. Use 5+ only for significant factors, 10+ for major factors, and 20 only for overwhelming factors. Do not compute the final DC; Python will apply only the top 3 positive and top 3 negative modifiers.""",
 
             "turn_summary": """Summarize this completed RPG turn in one concise line.
+            Do not promote speculation or lower-priority inference into durable truth.
             Return JSON with summary only."""
         }
 
@@ -153,7 +170,7 @@ Use only the compact referee packet provided. effect "helps" must use a negative
         })
 
         # Keep only last 100 calls
-        if len(self.call_history) > 100:
+        if len(self.call_history) > API_CALL_HISTORY_LIMIT:
             self.call_history.pop(0)
 
     def record_token_usage(self, prompt_type: str, input_tokens: int, output_tokens: int,
@@ -198,13 +215,16 @@ Use only the compact referee packet provided. effect "helps" must use a negative
         """Return the running token counter for this session."""
         return self.session_token_usage.copy()
 
-    def _optimize_context(self, context: dict, max_tokens: int = 1000) -> dict:
+    def _optimize_context(self, context: dict, max_tokens: int = API_CONTEXT_MAX_TOKENS) -> dict:
         """Compress context to fit token budget"""
         optimized = context.copy()
 
-        # Limit interaction history to last 3 entries
-        if "interaction_history" in optimized and len(optimized["interaction_history"]) > 3:
-            optimized["interaction_history"] = optimized["interaction_history"][-3:]
+        # Limit interaction history to the configured number of entries.
+        if "interaction_history" in optimized:
+            if API_OPTIMIZED_INTERACTION_HISTORY_LIMIT <= 0:
+                optimized["interaction_history"] = []
+            elif len(optimized["interaction_history"]) > API_OPTIMIZED_INTERACTION_HISTORY_LIMIT:
+                optimized["interaction_history"] = optimized["interaction_history"][-API_OPTIMIZED_INTERACTION_HISTORY_LIMIT:]
 
         # Simplify NPC profile if needed
         if "npc_profile" in optimized:
@@ -281,7 +301,7 @@ Use only the compact referee packet provided. effect "helps" must use a negative
         return self.model
 
     def call_api(self, prompt_type: str, context: dict, temperature: float = 0.7,
-                 model: Optional[str] = None, max_tokens: int = 500) -> Dict[str, Any]:
+                 model: Optional[str] = None, max_tokens: int = API_DEFAULT_MAX_TOKENS) -> Dict[str, Any]:
         """Make optimized API call with caching and error handling"""
         optimized_context = self._optimize_context(context)
         selected_model = model or self._model_for_prompt_type(prompt_type)
@@ -337,7 +357,7 @@ Use only the compact referee packet provided. effect "helps" must use a negative
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=30
+                timeout=API_LIVE_TIMEOUT_SECONDS
             )
 
             response.raise_for_status()

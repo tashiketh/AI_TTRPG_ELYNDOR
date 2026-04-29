@@ -121,13 +121,18 @@ function renderOpeningScene(gameState) {
     if (!output) return;
     const scenario = gameState.scenario || {};
     const opening = scenario.opening_scene || {};
-    const sceneText = scenario.current_scene || opening.text;
+    const resume = gameState.resume_context || {};
+    const resumeText = resume.last_dm_narrative || '';
+    const sceneText = resumeText || scenario.current_scene || opening.text;
     if (!sceneText) return;
     const defaultText = 'Welcome, adventurer. What would you like to do?';
     const alreadyRendered = output.dataset.openingSceneRendered === 'true';
     if (alreadyRendered || output.textContent.trim() !== defaultText) return;
     output.textContent = '';
-    appendTranscriptLine(output, 'DM', sceneText, 'opening-scene-line');
+    appendTranscriptLine(output, 'DM', sceneText, resumeText ? 'resume-scene-line' : 'opening-scene-line');
+    if (resume.last_player_input) {
+        updateLastPlayerInput(resume.last_player_input);
+    }
     output.dataset.openingSceneRendered = 'true';
 }
 // Player Character Sheet - Two Column Layout

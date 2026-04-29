@@ -5,7 +5,7 @@ import copy
 import os
 import re
 import logging
-from typing import Dict, Any, Literal, List, Optional
+from typing import Dict, Any, Literal, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 try:
@@ -16,6 +16,7 @@ import threading
 import time
 import signal
 from path_config import path_config
+from game_config import game_config
 # Import all your tools
 from combat_tools import CombatTools
 from combat_manager import CombatManager
@@ -49,8 +50,8 @@ CHARACTER_TEMPLATES_PATH = path_config.references_dir / "character_templates.jso
 API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"  # Mistral 3 Large endpoint
 logger = logging.getLogger("GameEngine")
 # Conversation management settings
-MAX_CONVERSATION_HISTORY = 4  # Keep last 4 player/DM exchanges
-SUMMARY_UPDATE_INTERVAL = 3  # Update summary every 3 interactions
+MAX_CONVERSATION_HISTORY = game_config.int("conversation.max_history", 4, min_value=1)
+SUMMARY_UPDATE_INTERVAL = game_config.int("conversation.summary_update_interval", 3, min_value=1)
 SUMMARY_FILE_NAME = "dm_summary.md"
 STORY_FILE_NAME = "story_transcript.md"
 DM_PROMPT_DEBUG_FILE_NAME = "last_dm_prompt_debug.md"
@@ -60,18 +61,74 @@ NPC_GENDER_MODIFIERS = {
     "male": {"Str": 2, "Vit": 1, "Will": -1},
     "female": {"Str": -1, "Ins": 1, "Will": 1},
 }
-NPC_FACT_MAX_COUNT = 40
-NPC_FACT_MAX_CHARS = 320
+NPC_FACT_MAX_COUNT = game_config.int("npc_memory.max_fact_count", 8, min_value=1)
+NPC_FACT_MAX_CHARS = game_config.int("npc_memory.max_fact_chars", 180, min_value=40)
+PROMPT_COMPACT_TEXT_CHARS = game_config.int("prompt_context.compact_text_chars", 1200, min_value=80)
+PROMPT_COMPACT_LIST_ITEMS = game_config.int("prompt_context.compact_list_items", 8, min_value=1)
+PROMPT_COMPACT_LIST_CHARS = game_config.int("prompt_context.compact_list_chars", 220, min_value=40)
+PROMPT_RECENT_EXCHANGE_LIMIT = game_config.int("prompt_context.recent_exchange_limit", 4, min_value=1)
+PROMPT_RECENT_PLAYER_CHARS = game_config.int("prompt_context.recent_player_chars", 420, min_value=40)
+PROMPT_RECENT_DM_CHARS = game_config.int("prompt_context.recent_dm_chars", 700, min_value=80)
+PROMPT_OPENING_SCENE_CHARS = game_config.int("prompt_context.opening_scene_chars", 1800, min_value=120)
+PROMPT_STORY_BIBLE_CHARS = game_config.int("prompt_context.story_bible_excerpt_chars", 900, min_value=120)
+PROMPT_RUNTIME_STORY_BIBLE_CHARS = game_config.int("prompt_context.runtime_story_bible_excerpt_chars", 700, min_value=120)
+PROMPT_SCENE_CONTEXT_CHARS = game_config.int("prompt_context.scene_context_chars", 900, min_value=120)
+PROMPT_SCENE_BRIEF_CHARS = game_config.int("prompt_context.scene_brief_chars", 700, min_value=120)
+PROMPT_BRIEF_TOKEN_BUDGET = game_config.int("prompt_context.brief_token_budget", 900, min_value=120)
+PROMPT_DM_RECENT_EXCHANGE_LIMIT = game_config.int("prompt_context.dm_recent_exchange_limit", 2, min_value=1)
+PROMPT_DM_RECENT_PLAYER_CHARS = game_config.int("prompt_context.dm_recent_player_chars", 220, min_value=40)
+PROMPT_DM_RECENT_DM_CHARS = game_config.int("prompt_context.dm_recent_dm_chars", 320, min_value=80)
+PROMPT_DM_SUMMARY_CHARS = game_config.int("prompt_context.dm_summary_chars", 600, min_value=80)
+MODEL_DM_TEMPERATURE = game_config.float("model_calls.dm_temperature", 0.75, min_value=0.0, max_value=2.0)
+MODEL_DM_MAX_TOKENS = game_config.int("model_calls.dm_max_tokens", 1200, min_value=1)
+MODEL_TURN_CONTEXT_TEMPERATURE = game_config.float("model_calls.turn_context_temperature", 0.1, min_value=0.0, max_value=2.0)
+MODEL_TURN_CONTEXT_MAX_TOKENS = game_config.int("model_calls.turn_context_max_tokens", 700, min_value=1)
+MODEL_DC_EVALUATION_TEMPERATURE = game_config.float("model_calls.dc_evaluation_temperature", 0.1, min_value=0.0, max_value=2.0)
+MODEL_DC_EVALUATION_MAX_TOKENS = game_config.int("model_calls.dc_evaluation_max_tokens", 800, min_value=1)
+MODEL_SOCIAL_DETECTION_TEMPERATURE = game_config.float("model_calls.social_detection_temperature", 0.1, min_value=0.0, max_value=2.0)
+MODEL_SKILL_DETECTION_TEMPERATURE = game_config.float("model_calls.skill_detection_temperature", 0.1, min_value=0.0, max_value=2.0)
+MODEL_NARRATIVE_BRIEF_TEMPERATURE = game_config.float("model_calls.narrative_brief_temperature", 0.15, min_value=0.0, max_value=2.0)
+MODEL_NARRATIVE_BRIEF_MAX_TOKENS = game_config.int("model_calls.narrative_brief_max_tokens", 500, min_value=1)
+MODEL_NPC_REVIEW_TEMPERATURE = game_config.float("model_calls.npc_review_temperature", 0.45, min_value=0.0, max_value=2.0)
+MODEL_NPC_REVIEW_MAX_TOKENS = game_config.int("model_calls.npc_review_max_tokens", 900, min_value=1)
+MODEL_TURN_SUMMARY_TEMPERATURE = game_config.float("model_calls.turn_summary_temperature", 0.2, min_value=0.0, max_value=2.0)
+MODEL_TURN_SUMMARY_MAX_TOKENS = game_config.int("model_calls.turn_summary_max_tokens", 250, min_value=1)
+DM_NARRATIVE_MIN_PARAGRAPHS = game_config.int("dm_narration.min_paragraphs", 2, min_value=1)
+DM_NARRATIVE_MAX_PARAGRAPHS = game_config.int("dm_narration.max_paragraphs", 3, min_value=DM_NARRATIVE_MIN_PARAGRAPHS)
+DM_NARRATIVE_RESPONSE_HOOKS = game_config.int("dm_narration.response_hook_count", 1, min_value=1)
+DM_PROSE_HEAT = game_config.int("dm_narration.prose_heat", 1, min_value=0, max_value=5)
+API_DM_TIMEOUT_SECONDS = game_config.float("api.dm_timeout_seconds", 40, min_value=1)
+WEB_DEFAULT_PORT = game_config.int("web.default_port", 5000, min_value=1, max_value=65535)
+WEB_ENGINE_STARTUP_WAIT_SECONDS = game_config.float("web.engine_startup_wait_seconds", 3, min_value=0.0)
+KNOWLEDGE_PRIORITY_RULES = [
+    "Story Bible is canonical truth.",
+    "Saved game_state facts are secondary and must not override the Story Bible.",
+    "Recent summary, transcript, generated briefs, and model inference are continuity aids only after the first two.",
+    "When sources conflict, follow the highest-priority source and avoid inventing a reconciliation.",
+]
+NPC_FACT_REPLACE_CATEGORIES = {
+    "status",
+    "location",
+    "injuries",
+    "treatment",
+    "restraints",
+    "mark",
+    "behavior",
+    "relationship",
+    "identity",
+}
 class ConversationManager:
     """Manages conversation history and summary for efficient API calls."""
     
-    def __init__(self):
+    def __init__(self, load_transcript: bool = True):
         self.history = []  # List of (player_input, dm_response) tuples
         self.summary = "Game has just begun."
         self.interactions_since_summary = 0
         self.story_bible = self._load_story_bible()
         self.summary_file_path = path_config.logs_dir / SUMMARY_FILE_NAME
         self.story_file_path = path_config.logs_dir / STORY_FILE_NAME
+        if load_transcript:
+            self.rehydrate_from_story_transcript()
         loaded_summary = self._load_summary_file()
         if loaded_summary:
             self.summary = loaded_summary
@@ -91,6 +148,47 @@ class ConversationManager:
         except Exception as e:
             logger.error(f"Failed to load summary file: {e}")
         return ""
+    def _parse_story_transcript(self, transcript_text: str) -> List[Tuple[str, str]]:
+        """Extract player/DM pairs from the markdown story transcript."""
+        exchanges = []
+        turn_pattern = re.compile(r"^##[ \t]+Turn[^\n]*\n(?P<body>.*?)(?=^##[ \t]+|\Z)", re.MULTILINE | re.DOTALL)
+        for match in turn_pattern.finditer(transcript_text or ""):
+            section = None
+            player_lines = []
+            dm_lines = []
+            for line in match.group("body").splitlines():
+                label = line.strip()
+                if label == "Player:":
+                    section = "player"
+                    continue
+                if label == "DM:":
+                    section = "dm"
+                    continue
+                if label == "Command:":
+                    break
+                if section == "player":
+                    player_lines.append(line)
+                elif section == "dm":
+                    dm_lines.append(line)
+            player_input = "\n".join(player_lines).strip()
+            dm_response = "\n".join(dm_lines).strip()
+            if player_input and dm_response:
+                exchanges.append((player_input, dm_response))
+        return exchanges[-MAX_CONVERSATION_HISTORY:]
+    def _load_story_transcript_history(self) -> List[Tuple[str, str]]:
+        """Load recent player/DM exchanges from the persistent transcript."""
+        try:
+            if self.story_file_path.exists():
+                transcript_text = self.story_file_path.read_text(encoding="utf-8")
+                return self._parse_story_transcript(transcript_text)
+        except Exception as e:
+            logger.error(f"Failed to load story transcript history: {e}")
+        return []
+    def rehydrate_from_story_transcript(self) -> int:
+        """Replace in-memory history with recent exchanges from the transcript."""
+        self.history = self._load_story_transcript_history()
+        self.interactions_since_summary = 0
+        return len(self.history)
     def get_summary_file_text(self) -> str:
         """Return the latest summary-file text for model context."""
         return self._load_summary_file() or self.summary
@@ -125,12 +223,42 @@ class ConversationManager:
                     f.write("\n```\n")
         except Exception as e:
             logger.error(f"Failed to append story exchange: {e}")
+    def seed_opening_scene(self, title: str, scene_text: str,
+                           scene_facts: Optional[List[str]] = None,
+                           source: str = ""):
+        """Initialize the story transcript with the opening scene."""
+        try:
+            path_config.logs_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            clean_title = str(title or "Opening Scene").strip()
+            clean_scene = str(scene_text or "").strip()
+            with open(self.story_file_path, "w", encoding="utf-8") as f:
+                f.write("# Story Transcript\n\n")
+                f.write(f"## Opening Scene: {clean_title} ({timestamp})\n\n")
+                if source:
+                    f.write(f"Source: {source}\n\n")
+                f.write(f"DM:\n{clean_scene}\n")
+                if scene_facts:
+                    f.write("\nScene Facts:\n")
+                    f.write("```json\n")
+                    f.write(json.dumps(scene_facts, indent=2, ensure_ascii=False))
+                    f.write("\n```\n")
+            if clean_scene:
+                self.add_interaction(f"[Opening Scene: {clean_title}]", clean_scene)
+        except Exception as e:
+            logger.error(f"Failed to seed opening scene transcript: {e}")
     def get_recent_exchanges(self, limit: int = MAX_CONVERSATION_HISTORY) -> List[Dict[str, str]]:
         """Return recent player/DM exchanges as structured data."""
         return [
             {"player": player_input, "dm": dm_response}
             for player_input, dm_response in self.history[-limit:]
         ]
+    def get_last_exchange(self) -> Dict[str, str]:
+        """Return the most recent player/DM exchange from restored history."""
+        if not self.history:
+            return {"player": "", "dm": ""}
+        player_input, dm_response = self.history[-1]
+        return {"player": player_input, "dm": dm_response}
     
     def _calculate_social_difficulty(self, player_input: str, target_npc: str) -> int:
         """Determine appropriate difficulty class for interaction"""
@@ -242,7 +370,7 @@ RECENT INTERACTIONS:
         return context
 class GameEngine:
     def __init__(self, start_web: bool = True, open_browser: bool = True,
-                 host: str = "127.0.0.1", port: int = 5000):
+                 host: str = "127.0.0.1", port: int = WEB_DEFAULT_PORT):
         print("🎮 Initializing Game Engine...")
         
         # Initialize all systems
@@ -286,7 +414,7 @@ class GameEngine:
         self.web_thread.start()
         
         # Wait for web interface to start
-        time.sleep(3)
+        time.sleep(WEB_ENGINE_STARTUP_WAIT_SECONDS)
         
         print("✅ Game engine fully initialized!")
         print("🌐 Web interface should have opened automatically in your browser")
@@ -553,10 +681,148 @@ class GameEngine:
             "personal flaw:",
             "narration from this interaction:",
             "player action during this interaction:",
+            "created_at:",
+            "updated_at:",
+            "deviation_range:",
+            "role:",
+            "faction:",
         )
         if not allow_character_creation and lowered.startswith(npc_bad_prefixes):
             return ""
+        prose_markers = (
+            "seems to",
+            "as if",
+            " like a ",
+            " like an ",
+            " like the ",
+            "hush of",
+            "holds its breath",
+            "swallows",
+            "the silence",
+        )
+        if not allow_character_creation and any(marker in lowered for marker in prose_markers):
+            return ""
+        if not allow_character_creation and self._fact_uses_player_subject(lowered):
+            return ""
+        if not allow_character_creation and not self._looks_like_state_fact(clean):
+            return ""
         return clean[:NPC_FACT_MAX_CHARS].rstrip()
+
+    def _fact_uses_player_subject(self, lowered_fact: str) -> bool:
+        """Detect player-action narration that should not become NPC memory."""
+        padded = f" {lowered_fact} "
+        return (
+            lowered_fact.startswith(("you ", "your ", "player "))
+            or any(token in padded for token in [" you ", " your ", " yourself ", " player "])
+        )
+
+    def _looks_like_state_fact(self, fact: str) -> bool:
+        """Accept generic NPC state facts; reject unlabeled prose beats."""
+        lowered = self._normalize_key_text(fact)
+        if not lowered:
+            return False
+        prefix = lowered.split(":", 1)[0].strip() if ":" in lowered else ""
+        if prefix in {
+            "name", "identity", "relationship", "trust", "mood", "status", "condition",
+            "conditions", "position", "location", "injury", "injuries", "wound", "wounds",
+            "bleeding", "fracture", "restraints", "chain", "chains", "mark", "brand",
+            "tattoo", "behavior", "goal", "need", "fear", "knowledge", "memory",
+        }:
+            return True
+        if lowered.startswith(("is ", "has ", "was ", "needs ", "wants ", "fears ", "knows ", "believes ")):
+            return True
+        state_verbs = {
+            "is", "are", "was", "were", "has", "have", "had", "remains", "remain",
+            "knows", "believes", "wants", "needs", "fears", "trusts", "distrusts",
+            "revealed", "implied", "acknowledges", "acknowledged", "accepts", "accepted",
+            "refuses", "refused", "recognizes", "recognized", "questions", "challenges",
+            "tests", "hides", "hiding",
+        }
+        words = re.findall(r"[a-zA-Z']+", lowered)
+        if not words:
+            return False
+        if words[0] in {"he", "she", "they", "it"} and len(words) > 1 and words[1] in state_verbs:
+            return True
+        if len(words) > 1 and words[1] in state_verbs:
+            return True
+        if len(words) > 2 and words[2] in state_verbs:
+            return True
+        return False
+
+    def _known_fact_category(self, fact: str) -> str:
+        """Classify an NPC fact so stale state can be replaced instead of repeated."""
+        lowered = self._normalize_key_text(fact)
+        prefix = lowered.split(":", 1)[0].strip() if ":" in lowered else ""
+        prefix_categories = {
+            "name": "identity",
+            "identity": "identity",
+            "relationship": "relationship",
+            "trust": "relationship",
+            "mood": "status",
+            "status": "status",
+            "condition": "status",
+            "conditions": "status",
+            "position": "location",
+            "location": "location",
+            "injury": "injuries",
+            "injuries": "injuries",
+            "wound": "injuries",
+            "wounds": "injuries",
+            "bleeding": "injuries",
+            "fracture": "injuries",
+            "chain": "restraints",
+            "chains": "restraints",
+            "restraints": "restraints",
+            "brand": "mark",
+            "tattoo": "mark",
+            "mark": "mark",
+            "behavior": "behavior",
+            "goal": "behavior",
+            "need": "behavior",
+            "fear": "behavior",
+            "knowledge": "note",
+            "memory": "note",
+        }
+        if prefix in prefix_categories:
+            return prefix_categories[prefix]
+        if any(token in lowered for token in ["bandage", "rebandage", "cleaned", "treated", "stabilized"]):
+            return "treatment"
+        if any(token in lowered for token in ["chain", "shackle", "bound", "binding", "restraint"]):
+            return "restraints"
+        if any(token in lowered for token in ["tattoo", "brand", "mark on"]):
+            return "mark"
+        if any(token in lowered for token in ["wound", "gash", "bruise", "cut", "blood", "bleed", "laceration", "fracture", "injur"]):
+            return "injuries"
+        if any(token in lowered for token in ["unconscious", "breathing", "stable", "stir", "weak", "pained"]):
+            return "status"
+        if any(token in lowered for token in ["react", "flinch", "defensive", "claw", "tail", "ears", "twitch"]):
+            return "behavior"
+        if any(token in lowered for token in ["hidden", "concealed", "forest", "undergrowth", "hollow", "oak", "brush"]):
+            return "location"
+        if any(token in lowered for token in ["trust", "relationship", "friend", "hostile", "afraid", "hopeful"]):
+            return "relationship"
+        return "note"
+
+    def _merge_known_fact(self, facts: List[str], fact: str, seen_notes: Optional[set] = None) -> List[str]:
+        """Merge one clean fact, replacing stale state facts in the same category."""
+        category = self._known_fact_category(fact)
+        if category in NPC_FACT_REPLACE_CATEGORIES:
+            facts = [
+                existing
+                for existing in facts
+                if self._known_fact_category(existing) != category
+            ]
+            facts.append(fact)
+            return facts[-NPC_FACT_MAX_COUNT:]
+        if seen_notes is not None:
+            note_key = self._normalize_key_text(fact)
+            if note_key in seen_notes:
+                return facts
+            seen_notes.add(note_key)
+        elif fact in facts:
+            return facts
+        facts.append(fact)
+        return facts[-NPC_FACT_MAX_COUNT:]
 
     def _sanitize_known_facts_value(self, facts: Any, allow_character_creation: bool = False) -> List[str]:
         """Normalize known_facts to a small flat list of strings only."""
@@ -575,17 +841,12 @@ class GameEngine:
             raw_facts = []
 
         cleaned: List[str] = []
-        seen = set()
-        total_chars = 0
+        seen_notes = set()
         for fact in raw_facts:
             clean = self._sanitize_known_fact_text(fact, allow_character_creation=allow_character_creation)
-            if not clean or clean in seen:
+            if not clean:
                 continue
-            seen.add(clean)
-            cleaned.append(clean)
-            total_chars += len(clean)
-            if total_chars >= NPC_FACT_MAX_COUNT * NPC_FACT_MAX_CHARS:
-                break
+            cleaned = self._merge_known_fact(cleaned, clean, seen_notes)
         return cleaned[-NPC_FACT_MAX_COUNT:]
 
     def _append_npc_known_fact(self, npc: Dict[str, Any], fact: Any):
@@ -593,8 +854,8 @@ class GameEngine:
         identity = self._npc_identity(npc)
         known_facts = self._sanitize_known_facts_value(identity.get("known_facts", []))
         clean = self._sanitize_known_fact_text(fact)
-        if clean and len(clean) > 12 and clean not in known_facts:
-            known_facts.append(clean)
+        if clean and len(clean) > 12:
+            known_facts = self._merge_known_fact(known_facts, clean)
         identity["known_facts"] = known_facts[-NPC_FACT_MAX_COUNT:]
 
     def _normalize_npc_gender(self, gender: Any) -> str:
@@ -783,10 +1044,19 @@ class GameEngine:
                 npc[field] = value
             return
 
-        # === GOOD NARRATIVE FACTS ===
-        if field in {"status", "injuries", "wounds", "conditions", "physical_state", "notes", 
+        # === CURRENT NPC STATE ===
+        if field in {"status", "injuries", "wounds", "conditions", "physical_state",
                      "location", "bleeding", "fracture", "chain", "slave_mark", "tattoo"}:
-            self._append_npc_known_fact(npc, f"{field}: {value}")
+            fact_text = self._sanitize_known_fact_text(f"{field}: {value}")
+            if fact_text:
+                identity[field] = fact_text.split(":", 1)[1].strip()
+                self._append_npc_known_fact(npc, fact_text)
+            return
+
+        if field == "notes":
+            clean_value = self._sanitize_known_fact_text(value)
+            if clean_value and self._known_fact_category(clean_value) != "note":
+                self._append_npc_known_fact(npc, clean_value)
             return
 
         if field == "gender":
@@ -804,10 +1074,8 @@ class GameEngine:
             identity[field] = value
             return
 
-        # === SAFE FALLBACK ===
-        if isinstance(value, (str, int, float, bool)):
-            self._append_npc_known_fact(npc, f"{field}: {value}")
-        # Skip complex objects
+        # Unknown scalar fields are ignored. Durable memory should arrive through
+        # recognized state fields or explicit known_facts, not template metadata.
 
     def _make_template_npc(self, npc_id: str, source: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Instantiate a canonical NPC record from references/character_templates.json."""
@@ -1066,28 +1334,27 @@ class GameEngine:
     def _call_mistral_api(self, prompt: str) -> str:
         """Call the Mistral API with the improved novel-style prompt."""
         api_key = self.api_manager.api_key
+        dm_style_rules = self._dm_prose_style_rules()
 
         # === IMPROVED DM PROMPT ===
-        system_content = """You are an expert Dungeon Master narrating a dark fantasy TTRPG in a novel-like style.
+        system_content = f"""You are an expert Dungeon Master narrating a dark fantasy TTRPG in a novel-like style.
 
 Core Rules:
 - Never speak or act for the player. Incorporate exactly what they said and did into the narrative.
 - Fix the player's grammar and spelling when weaving their actions/words into the story.
 - Write in third-person limited, focusing on what the player experiences.
-- Responses should be 3 to 5 well-flowing paragraphs.
+- Responses should be {DM_NARRATIVE_MIN_PARAGRAPHS} to {DM_NARRATIVE_MAX_PARAGRAPHS} well-flowing narrative paragraphs before the JSON command block.
 - Do not summarize or repeat the scene setting unless something meaningful has changed.
 
 Structure:
-1. First paragraph: Begin directly with the player's most recent action or words, integrating them naturally.
-2. Middle paragraphs: Show how the world and NPCs react — include meaningful dialogue, body language, thoughts, and consequences.
-3. Final paragraph: End on a natural continuation. Never end with a question, cliffhanger, or "What do you do next?"
+1. First paragraph: Retell the player's most recent action or spoken words in narrative form before showing outcomes.
+2. Middle paragraph: Show only the immediate result: NPC reaction, body language, short dialogue, and direct consequences.
+3. Optional final paragraph: Add one extra immediate consequence only if needed, then stop at the first clear player response opportunity.
+4. Include at most {DM_NARRATIVE_RESPONSE_HOOKS} clear response hook. A hook can be a direct question, request, accusation, choice point, or quoted line that naturally invites the player to answer.
+5. Once the response hook appears, do not continue with a second question, warning, scene beat, or new complication. Never write "What do you do next?"
 
 Style Guidelines:
-- Be vivid but concise. Avoid long descriptions of eyes, hair, weather, or architecture unless directly relevant.
-- Do not use cheesy phrases, dramatic monologues, or "this could be our salvation... or our doom" style writing.
-- Do not re-describe the same location or characters every turn.
-- Keep the tone dark, grounded, and immersive.
-- Focus on atmosphere, tension, and character emotion rather than purple prose.
+{dm_style_rules}
 
 Remember: These responses will be stitched together into a continuous story. Prioritize flow and readability above all."""
 
@@ -1118,13 +1385,13 @@ Remember: These responses will be stitched together into a continuous story. Pri
         data = {
             "model": self.api_manager.dm_model,
             "messages": messages,
-            "temperature": 0.75,
-            "max_tokens": 1200
+            "temperature": MODEL_DM_TEMPERATURE,
+            "max_tokens": MODEL_DM_MAX_TOKENS
         }
 
         try:
             self.api_manager.delay_before_call()
-            response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=40)
+            response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=API_DM_TIMEOUT_SECONDS)
             response.raise_for_status()
 
             result = response.json()
@@ -1179,13 +1446,14 @@ Remember: These responses will be stitched together into a continuous story. Pri
             f"```json\n{json.dumps(command)}\n```"
         )
     
-    def _compact_text(self, value: Any, max_chars: int = 1200) -> str:
+    def _compact_text(self, value: Any, max_chars: int = PROMPT_COMPACT_TEXT_CHARS) -> str:
         """Collapse whitespace and cap text for prompt budget control."""
         compact = " ".join(str(value or "").split())
         if len(compact) <= max_chars:
             return compact
         return compact[:max_chars - 3].rstrip() + "..."
-    def _compact_list_text(self, values: Any, max_items: int = 8, max_chars: int = 220) -> List[str]:
+    def _compact_list_text(self, values: Any, max_items: int = PROMPT_COMPACT_LIST_ITEMS,
+                           max_chars: int = PROMPT_COMPACT_LIST_CHARS) -> List[str]:
         """Return a bounded list of compact strings."""
         if isinstance(values, str):
             values = [values]
@@ -1197,9 +1465,9 @@ Remember: These responses will be stitched together into a continuous story. Pri
             if text:
                 compacted.append(text)
         return compacted
-    def _compact_recent_exchanges(self, limit: int = 4,
-                                  max_player_chars: int = 420,
-                                  max_dm_chars: int = 700) -> List[Dict[str, str]]:
+    def _compact_recent_exchanges(self, limit: int = PROMPT_RECENT_EXCHANGE_LIMIT,
+                                  max_player_chars: int = PROMPT_RECENT_PLAYER_CHARS,
+                                  max_dm_chars: int = PROMPT_RECENT_DM_CHARS) -> List[Dict[str, str]]:
         """Return recent exchanges with bounded text for prompt use."""
         return [
             {
@@ -1489,7 +1757,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
         return selected
     def _story_bible_excerpt(self, player_input: str,
                              turn_context: Optional[Dict[str, Any]] = None,
-                             max_chars: int = 1800) -> str:
+                             max_chars: int = PROMPT_STORY_BIBLE_CHARS) -> str:
         """Select a compact story bible excerpt relevant to this turn."""
         bible = self.conversation_manager.story_bible or ""
         if len(bible) <= max_chars:
@@ -1520,6 +1788,44 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if not excerpt_parts:
             return self._compact_text(bible, max_chars)
         return "\n\n".join(excerpt_parts)
+    def _knowledge_priority_context(self) -> Dict[str, Any]:
+        """Return the source-priority contract shared by story-facing prompts."""
+        return {
+            "highest_to_lowest": KNOWLEDGE_PRIORITY_RULES,
+            "saved_game_state_examples": [
+                "scenario.current_scene",
+                "scenario.scene_facts",
+                "world.facts",
+                "NPC identity/known_facts",
+                "player identity/inventory/equipment",
+            ],
+        }
+    def _format_knowledge_priority_for_prompt(self) -> str:
+        """Format source priority for the final DM prompt."""
+        return "\n".join(
+            f"{index}. {rule}"
+            for index, rule in enumerate(KNOWLEDGE_PRIORITY_RULES, start=1)
+        )
+    def _dm_prose_style_rules(self) -> str:
+        """Return prose intensity and repetition guardrails for DM narration."""
+        heat_profiles = {
+            0: ("plain referee", "Use spare, practical sentences with almost no imagery."),
+            1: ("grounded", "Use clean narrative prose with at most one concrete sensory detail."),
+            2: ("restrained novel", "Use vivid but economical prose; let action and dialogue carry the scene."),
+            3: ("atmospheric", "Use richer atmosphere when it sharpens tension, but keep it tied to action."),
+            4: ("lyrical", "Use expressive description, but avoid slowing the turn or obscuring consequences."),
+            5: ("ornate", "Use high fantasy flourish while still obeying pacing and clarity limits."),
+        }
+        label, guidance = heat_profiles.get(DM_PROSE_HEAT, heat_profiles[1])
+        return "\n".join([
+            f"PROSE HEAT: {DM_PROSE_HEAT}/5 ({label})",
+            f"- {guidance}",
+            "- Do not re-describe the environment unless it changed or the player directly interacts with it.",
+            "- Use at most one environmental or sensory sentence per response unless the environment is the obstacle.",
+            "- Prefer concrete action, NPC behavior, dialogue, and consequences over atmosphere.",
+            "- Avoid ornate similes, repeated motifs, and stock dramatic phrasing.",
+            "- Do not reuse distinctive images from recent DM responses unless continuity requires it.",
+        ])
     def _get_scene_context(self) -> str:
         """Return the active scene that the DM must treat as current reality."""
         scenario = self.game_state.get("scenario", {})
@@ -1528,6 +1834,21 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if current_scene:
             return current_scene
         return ""
+    def _opening_scene_context(self) -> Dict[str, Any]:
+        """Return the opening-scene seed for prompt continuity."""
+        scenario = self.game_state.get("scenario", {})
+        opening_scene = scenario.get("opening_scene", {})
+        if not isinstance(opening_scene, dict):
+            return {}
+        text = self._compact_text(opening_scene.get("text", ""), PROMPT_OPENING_SCENE_CHARS)
+        if not text:
+            return {}
+        return {
+            "title": self._compact_text(opening_scene.get("title", "Opening Scene"), 120),
+            "text": text,
+            "status": opening_scene.get("status", ""),
+            "source": scenario.get("current_scene_source", ""),
+        }
     def _get_known_npcs_for_prompt(self) -> List[Dict[str, Any]]:
         """Return only NPCs active in the save state, never the reference library."""
         known = {}
@@ -1613,6 +1934,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
                                      context: Dict[str, Any], suggested_base: int) -> Dict[str, Any]:
         """Build the intentionally narrow fact packet for DC adjudication."""
         return {
+            "knowledge_priority": self._knowledge_priority_context(),
+            "story_bible_excerpt": context.get("story_bible_excerpt", ""),
             "player_input": player_input,
             "proposed_check": {
                 "skill": skill_detection.get("skill", ""),
@@ -1631,17 +1954,19 @@ Remember: These responses will be stitched together into a continuous story. Pri
     def _build_turn_evaluation_context(self, player_input: str) -> Dict[str, Any]:
         """Context used by pre-DM evaluation prompts."""
         return {
+            "knowledge_priority": self._knowledge_priority_context(),
             "player_input": player_input,
-            "summary_file": self._compact_text(self.conversation_manager.get_summary_file_text(), 1200),
-            "last_4_exchanges": self._compact_recent_exchanges(4),
-            "current_scene": self._compact_text(self._get_scene_context(), 900),
+            "summary_file": self._compact_text(self.conversation_manager.get_summary_file_text(), PROMPT_COMPACT_TEXT_CHARS),
+            "last_4_exchanges": self._compact_recent_exchanges(PROMPT_RECENT_EXCHANGE_LIMIT),
+            "opening_scene": self._opening_scene_context(),
+            "current_scene": self._compact_text(self._get_scene_context(), PROMPT_SCENE_CONTEXT_CHARS),
             "scene_facts": self._compact_list_text(self.game_state.get("scenario", {}).get("scene_facts", []), 12, 220),
             "world_facts": self._compact_list_text(self.game_state.get("world", {}).get("facts", []), 8, 220),
             "known_npcs": self._get_known_npcs_for_prompt(),
             "location": self.game_state.get("world", {}).get("location", {}),
             "player": self._compact_player_for_prompt(),
             "player_possessions": self._compact_player_possessions_for_prompt(),
-            "story_bible_excerpt": self._story_bible_excerpt(player_input, max_chars=900),
+            "story_bible_excerpt": self._story_bible_excerpt(player_input, max_chars=PROMPT_STORY_BIBLE_CHARS),
             "racial_profiles": self._select_racial_profiles(),
         }
     def _build_shared_story_context(self, player_input: str,
@@ -1659,10 +1984,12 @@ Remember: These responses will be stitched together into a continuous story. Pri
             220,
         )
         return {
-            "campaign_summary": self._compact_text(self.conversation_manager.get_summary_file_text(), 1200),
-            "recent_exchanges": self._compact_recent_exchanges(4),
-            "current_scene": self._compact_text(self._get_scene_context(), 900),
-            "scene_brief": self._compact_text((narrative_brief or {}).get("scene_brief", ""), 700),
+            "knowledge_priority": self._knowledge_priority_context(),
+            "campaign_summary": self._compact_text(self.conversation_manager.get_summary_file_text(), PROMPT_COMPACT_TEXT_CHARS),
+            "recent_exchanges": self._compact_recent_exchanges(PROMPT_RECENT_EXCHANGE_LIMIT),
+            "opening_scene": self._opening_scene_context(),
+            "current_scene": self._compact_text(self._get_scene_context(), PROMPT_SCENE_CONTEXT_CHARS),
+            "scene_brief": self._compact_text((narrative_brief or {}).get("scene_brief", ""), PROMPT_SCENE_BRIEF_CHARS),
             "scene_facts": scene_facts,
             "world_facts": world_facts,
             "known_npcs": self._get_known_npcs_for_prompt(),
@@ -1671,7 +1998,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "player_possessions": self._compact_player_possessions_for_prompt(),
             "turn_context": self._compact_turn_context_for_prompt(turn_context),
             "relevant_lore": self._select_dm_lore_profiles(player_input, turn_context, scene_facts),
-            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=900),
+            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=PROMPT_STORY_BIBLE_CHARS),
         }
     def _evaluate_turn_context(self, player_input: str) -> Dict[str, Any]:
         """Use the context model to decide what context matters this turn."""
@@ -1679,8 +2006,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
         evaluation = self.api_manager.call_api(
             "turn_context_evaluation",
             context,
-            temperature=0.1,
-            max_tokens=700,
+            temperature=MODEL_TURN_CONTEXT_TEMPERATURE,
+            max_tokens=MODEL_TURN_CONTEXT_MAX_TOKENS,
         )
         if not isinstance(evaluation, dict):
             evaluation = {}
@@ -1753,7 +2080,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if skill == "stealth":
             if any(term in text for term in ["hundred yards", "100 yards", "one hundred yards"]):
                 return -max(magnitude, 10)
-            if any(term in fact_text for term in ["distracted", "focused on the caravan", "focused on the massacre", "not actively searching"]):
+            if any(term in fact_text for term in ["distracted", "focused elsewhere", "focused on another target", "not actively searching"]):
                 return -max(magnitude, 10)
             if any(term in fact_text for term in ["actively searching", "on alert", "watching the route", "attention fixed"]):
                 if "not actively searching" not in text:
@@ -1762,7 +2089,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 return -max(magnitude, 2)
             if any(term in fact_text for term in ["chain", "rattle", "metal restraints"]):
                 return max(magnitude, 6)
-            if any(term in fact_text for term in ["slave mark", "glowing", "draw attention"]):
+            if any(term in fact_text for term in ["visible mark", "glowing mark", "glowing", "draw attention"]):
                 return max(magnitude, 2)
             if any(term in fact_text for term in ["wounded", "unconscious", "moving another body", "moving a wounded"]):
                 return max(magnitude, 8)
@@ -1890,8 +2217,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
         raw_evaluation = self.api_manager.call_api(
             "dc_evaluation",
             dc_context,
-            temperature=0.1,
-            max_tokens=800,
+            temperature=MODEL_DC_EVALUATION_TEMPERATURE,
+            max_tokens=MODEL_DC_EVALUATION_MAX_TOKENS,
         )
         if not isinstance(raw_evaluation, dict):
             raw_evaluation = {}
@@ -1932,7 +2259,11 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if turn_context:
             context["turn_context"] = self._compact_turn_context_for_prompt(turn_context)
             context["racial_profiles"] = self._select_racial_profiles(turn_context)
-            context["story_bible_excerpt"] = self._story_bible_excerpt(player_input, turn_context, max_chars=700)
+            context["story_bible_excerpt"] = self._story_bible_excerpt(
+                player_input,
+                turn_context,
+                max_chars=PROMPT_RUNTIME_STORY_BIBLE_CHARS,
+            )
         inferred = self.api_manager._infer_social_check(context)
         social_words = [
             "talk", "speak", "say", "ask", "tell", "convince", "persuade",
@@ -1949,7 +2280,11 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 "reason": inferred.get("reason", "No social check needed"),
                 "raw_detection": {"source": "local_prefilter", **inferred},
             }
-        detection = self.api_manager.call_api("social_check_detection", context, temperature=0.1)
+        detection = self.api_manager.call_api(
+            "social_check_detection",
+            context,
+            temperature=MODEL_SOCIAL_DETECTION_TEMPERATURE,
+        )
         known_npcs = context["known_npcs"]
         target = detection.get("target_npc") or detection.get("npc_id") or ""
         resolved_target = self._resolve_detected_npc_id(target, known_npcs)
@@ -1975,8 +2310,16 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if turn_context:
             context["turn_context"] = self._compact_turn_context_for_prompt(turn_context)
             context["racial_profiles"] = self._select_racial_profiles(turn_context)
-            context["story_bible_excerpt"] = self._story_bible_excerpt(player_input, turn_context, max_chars=700)
-        detection = self.api_manager.call_api("skill_check_detection", context, temperature=0.1)
+            context["story_bible_excerpt"] = self._story_bible_excerpt(
+                player_input,
+                turn_context,
+                max_chars=PROMPT_RUNTIME_STORY_BIBLE_CHARS,
+            )
+        detection = self.api_manager.call_api(
+            "skill_check_detection",
+            context,
+            temperature=MODEL_SKILL_DETECTION_TEMPERATURE,
+        )
         needs_check = bool(detection.get("needs_skill_check", False))
         inferred_detection = self.api_manager._infer_skill_check(context)
         if not needs_check and (detection.get("parse_error") or inferred_detection.get("needs_skill_check")):
@@ -2162,7 +2505,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
                                   skill_result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Build a compact trusted brief without relying on model prose."""
         return {
-            "scene_brief": self._compact_text(self._get_scene_context(), 700),
+            "scene_brief": self._compact_text(self._get_scene_context(), PROMPT_SCENE_BRIEF_CHARS),
             "relevant_lore": self._compact_lore_entries(self._select_racial_profiles(turn_context), max_entries=3),
             "active_npcs": self._brief_active_npcs(turn_context),
             "mechanical_constraints": self._trusted_mechanical_constraints(
@@ -2200,7 +2543,10 @@ Remember: These responses will be stitched together into a continuous story. Pri
             if isinstance(npc, dict) and npc.get("npc_id") in known_ids
         ] if isinstance(brief.get("active_npcs"), list) else []
         sanitized = {
-            "scene_brief": self._compact_text(brief.get("scene_brief") or fallback["scene_brief"], 700),
+            "scene_brief": self._compact_text(
+                brief.get("scene_brief") or fallback["scene_brief"],
+                PROMPT_SCENE_BRIEF_CHARS,
+            ),
             "relevant_lore": self._compact_lore_entries(brief.get("relevant_lore") or fallback["relevant_lore"], max_entries=3),
             "active_npcs": model_active_npcs or fallback["active_npcs"],
             "mechanical_constraints": fallback["mechanical_constraints"],
@@ -2213,7 +2559,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 for item in (brief.get("forbidden_assumptions") or fallback["forbidden_assumptions"])[:4]
             ] if isinstance(brief.get("forbidden_assumptions") or fallback["forbidden_assumptions"], list) else fallback["forbidden_assumptions"],
         }
-        while self.api_manager._estimate_token_count(sanitized) > 900:
+        while self.api_manager._estimate_token_count(sanitized) > PROMPT_BRIEF_TOKEN_BUDGET:
             if len(sanitized["relevant_lore"]) > 1:
                 sanitized["relevant_lore"] = sanitized["relevant_lore"][:1]
             elif len(sanitized["scene_brief"]) > 360:
@@ -2232,7 +2578,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
         context.update({
             "turn_context": self._compact_turn_context_for_prompt(turn_context),
             "racial_profiles": self._select_racial_profiles(turn_context),
-            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=900),
+            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=PROMPT_STORY_BIBLE_CHARS),
             "social_check": self._compact_social_check_for_prompt(social_check),
             "social_result": self._compact_social_result_for_prompt(social_result),
             "skill_check": self._compact_skill_check_for_prompt(skill_check),
@@ -2241,8 +2587,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
         brief = self.api_manager.call_api(
             "narrative_brief",
             context,
-            temperature=0.15,
-            max_tokens=500,
+            temperature=MODEL_NARRATIVE_BRIEF_TEMPERATURE,
+            max_tokens=MODEL_NARRATIVE_BRIEF_MAX_TOKENS,
         )
         return self._sanitize_narrative_brief(
             brief,
@@ -2273,7 +2619,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "narrative_brief": narrative_brief or {},
             "story_context": self._build_shared_story_context(player_input, turn_context, narrative_brief),
             "racial_profiles": self._select_racial_profiles(turn_context),
-            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=700),
+            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=PROMPT_RUNTIME_STORY_BIBLE_CHARS),
             "social_check": self._compact_social_check_for_prompt(social_check),
             "social_result": self._compact_social_result_for_prompt(social_result),
             "skill_check": self._compact_skill_check_for_prompt(skill_check),
@@ -2282,8 +2628,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
         review = self.api_manager.call_api(
             "npc_action_review",
             context,
-            temperature=0.45,
-            max_tokens=900,
+            temperature=MODEL_NPC_REVIEW_TEMPERATURE,
+            max_tokens=MODEL_NPC_REVIEW_MAX_TOKENS,
         )
         npc_actions = review.get("npc_actions", [])
         if not isinstance(npc_actions, list):
@@ -2316,7 +2662,12 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "skill_result": self._compact_skill_result_for_prompt(skill_result),
             "scene_result": self._compact_text((narrative_brief or {}).get("scene_brief", ""), 220),
         }
-        summary_response = self.api_manager.call_api("turn_summary", context, temperature=0.2, max_tokens=250)
+        summary_response = self.api_manager.call_api(
+            "turn_summary",
+            context,
+            temperature=MODEL_TURN_SUMMARY_TEMPERATURE,
+            max_tokens=MODEL_TURN_SUMMARY_MAX_TOKENS,
+        )
         summary = summary_response.get("summary") or summary_response.get("narrative") or ""
         self.conversation_manager.append_summary_line(summary)
         return " ".join(summary.split()).strip()
@@ -2423,7 +2774,10 @@ Remember: These responses will be stitched together into a continuous story. Pri
         location = self.game_state.get('world', {}).get('location', {}).get('settlement', 'unknown')
         scene_facts = self._compact_list_text(self.game_state.get("scenario", {}).get("scene_facts", []), 10, 220)
         world_facts = self._compact_list_text(self.game_state.get("world", {}).get("facts", []), 8, 220)
-        scene_brief = self._compact_text((narrative_brief or {}).get("scene_brief") or self._get_scene_context(), 900)
+        scene_brief = self._compact_text(
+            (narrative_brief or {}).get("scene_brief") or self._get_scene_context(),
+            PROMPT_SCENE_CONTEXT_CHARS,
+        )
         precomputed_context = self._format_precomputed_context(
             social_check,
             social_result,
@@ -2435,14 +2789,29 @@ Remember: These responses will be stitched together into a continuous story. Pri
         )
         known_npcs = self._get_known_npcs_for_prompt()
         lore_profiles = self._select_dm_lore_profiles(player_input, turn_context, scene_facts)
-        recent_exchanges = self._compact_recent_exchanges(2, max_player_chars=220, max_dm_chars=320)
-        summary = self._compact_text(self.conversation_manager.get_summary_file_text(), 600)
+        recent_exchanges = self._compact_recent_exchanges(
+            PROMPT_DM_RECENT_EXCHANGE_LIMIT,
+            max_player_chars=PROMPT_DM_RECENT_PLAYER_CHARS,
+            max_dm_chars=PROMPT_DM_RECENT_DM_CHARS,
+        )
+        summary = self._compact_text(self.conversation_manager.get_summary_file_text(), PROMPT_DM_SUMMARY_CHARS)
+        opening_scene = self._opening_scene_context()
+        story_bible_excerpt = self._story_bible_excerpt(
+            player_input,
+            turn_context,
+            max_chars=PROMPT_STORY_BIBLE_CHARS,
+        )
         player_input_json = json.dumps(player_input)
         sections = []
-        if summary:
-            sections.append(f"CAMPAIGN SUMMARY:\n{summary}")
-        if recent_exchanges:
-            sections.append(f"RECENT EXCHANGES:\n{json.dumps(recent_exchanges, indent=2)}")
+        sections.append(f"KNOWLEDGE PRIORITY:\n{self._format_knowledge_priority_for_prompt()}")
+        if story_bible_excerpt:
+            sections.append(f"CANONICAL STORY BIBLE EXCERPT:\n{story_bible_excerpt}")
+        if opening_scene:
+            sections.append(
+                "OPENING SCENE / CAMPAIGN SEED:\n"
+                f"{opening_scene.get('title', 'Opening Scene')}\n\n"
+                f"{opening_scene.get('text', '')}"
+            )
         sections.append(f"SCENE BRIEF:\n{scene_brief or 'No current scene is available.'}")
         if scene_facts:
             sections.append(f"DURABLE SCENE FACTS:\n{json.dumps(scene_facts, indent=2)}")
@@ -2465,6 +2834,10 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 "Use these npc_id values exactly when emitting npc_update commands.\n"
                 f"{json.dumps(known_npcs, indent=2)}"
             )
+        if summary:
+            sections.append(f"CAMPAIGN SUMMARY:\n{summary}")
+        if recent_exchanges:
+            sections.append(f"RECENT EXCHANGES:\n{json.dumps(recent_exchanges, indent=2)}")
         if precomputed_context != "{}":
             sections.append(
                 "PRE-DM CONSTRAINTS:\n"
@@ -2479,6 +2852,19 @@ PLAYER AGENCY RULES:
 - Plans, intentions, and conditions are context only unless the player explicitly acts on them now.
 - If the action reaches a natural stopping point, stop there and leave the next choice unresolved.
 - You may narrate time passing, NPC/enemy actions, environmental changes, and observed consequences.
+DM NARRATIVE SHAPE:
+- Write {DM_NARRATIVE_MIN_PARAGRAPHS} to {DM_NARRATIVE_MAX_PARAGRAPHS} narrative paragraphs before the JSON block.
+- Paragraph 1 must restate PLAYER ACTION in polished narrative form, including the player's spoken words or intent when present.
+- Paragraph 2, and paragraph 3 only if needed, should show immediate results of that action.
+- Present at most {DM_NARRATIVE_RESPONSE_HOOKS} clear player response opportunity, then stop the narrative immediately.
+- A response opportunity may be NPC dialogue, a direct question, an accusation, a request, a visible choice point, or a pause that clearly invites the player to respond.
+- Do not stack response hooks. After an NPC gives the player something to answer, do not add a second question, warning, threat, new objective, or extra scene beat.
+DM STYLE:
+{self._dm_prose_style_rules()}
+NPC MEMORY RULES:
+- npc_update.known_facts must be concise current facts, not full narration.
+- Keep each NPC fact under one short sentence and avoid "you/your" phrasing.
+- Prefer current status, location, injuries, restraints, special marks, behavior, identity, or relationship changes.
 RESPOND WITH:
 1. Narrative description of what happens.
 2. At the very end, exactly one JSON command block with mechanical actions and durable state updates.
@@ -2657,37 +3043,7 @@ ONLY output the narrative + one JSON block. No extra text."""
                                         social_check: Optional[Dict[str, Any]] = None,
                                         social_result: Optional[Dict[str, Any]] = None,
                                         npc_review: Optional[Dict[str, Any]] = None):
-        """After final DM narration, keep only NPC-descriptive sentences as memory."""
-        candidate_sentences = [
-            sentence.strip()
-            for sentence in re.split(r"(?<=[.!?])\s+", str(narrative or ""))
-            if sentence.strip()
-        ][:8]
-        seen = set()
-        for ref in self._npc_refs_from_completed_turn(command, social_check, social_result, npc_review):
-            resolved = self._resolve_npc_reference(ref)
-            if not resolved or resolved in seen:
-                continue
-            npc = self.game_state.get("npcs", {}).get(resolved)
-            if not isinstance(npc, dict):
-                continue
-            npc_name = self._normalize_key_text(self._get_npc_field(npc, "name", ""))
-            npc_race = self._normalize_key_text(self._get_npc_field(npc, "race", ""))
-            added = 0
-            for sentence in candidate_sentences:
-                lowered = self._normalize_key_text(sentence)
-                mentions_npc = (
-                    (npc_name and npc_name in lowered)
-                    or (npc_race and npc_race in lowered)
-                    or any(token in lowered for token in [" woman", " girl", " she ", " her ", "herself"])
-                )
-                mentions_player_action = any(token in lowered for token in [" you ", " your ", "player"])
-                if mentions_npc and not mentions_player_action:
-                    self._append_npc_known_fact(npc, sentence)
-                    added += 1
-                    if added >= 2:
-                        break
-            seen.add(resolved)
+        """Normalize NPC records after command updates without mining DM prose."""
         self._normalize_npc_records()
 
     def _execute_single_command(self, command: Dict) -> Dict:
@@ -3038,7 +3394,7 @@ ONLY output the narrative + one JSON block. No extra text."""
         self.game_state_exists = True
         
         # Reset conversation history
-        self.conversation_manager = ConversationManager()
+        self.conversation_manager = ConversationManager(load_transcript=False)
         self.conversation_manager.summary = get_opening_campaign_summary()
         try:
             path_config.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -3046,7 +3402,12 @@ ONLY output the narrative + one JSON block. No extra text."""
                 self.conversation_manager.summary + "\n",
                 encoding="utf-8",
             )
-            self.conversation_manager.story_file_path.write_text("", encoding="utf-8")
+            self.conversation_manager.seed_opening_scene(
+                get_opening_scene_title(),
+                opening_scene,
+                opening_scene_facts,
+                get_opening_scene_source(),
+            )
         except Exception as e:
             logger.error(f"Failed to reset conversation files for new game: {e}")
         location = self.game_state.get("world", {}).get("location", {})
@@ -3071,11 +3432,13 @@ ONLY output the narrative + one JSON block. No extra text."""
                 "error": "No existing game found to continue"
             }
         self._load_game_state()
+        self.conversation_manager.rehydrate_from_story_transcript()
         print("📁 Continuing existing game")
         return {
             "success": True,
             "message": f"Welcome back! Continuing your adventure from {self.game_state['world']['location']['settlement']}.",
-            "game_state": self.game_state
+            "game_state": self.game_state,
+            "resume_context": self.get_resume_context()
         }
     def get_character_creation_info(self) -> Dict:
         """Get information needed for character creation."""
@@ -3153,6 +3516,17 @@ ONLY output the narrative + one JSON block. No extra text."""
     def get_game_state(self) -> Dict:
         """Get the current game state."""
         return self.game_state
+    def get_resume_context(self) -> Dict[str, Any]:
+        """Return non-persistent UI context for resuming an interrupted game."""
+        last_exchange = self.conversation_manager.get_last_exchange()
+        last_dm = str(last_exchange.get("dm") or "").strip()
+        last_player = str(last_exchange.get("player") or "").strip()
+        return {
+            "has_last_turn": bool(last_dm),
+            "last_player_input": last_player,
+            "last_dm_narrative": last_dm,
+            "source": STORY_FILE_NAME if last_dm else "",
+        }
     def get_token_usage(self) -> Dict:
         """Get current session token usage."""
         return self.api_manager.get_token_usage()
