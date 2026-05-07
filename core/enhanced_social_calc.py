@@ -11,7 +11,7 @@ import logging
 import os
 
 logger = logging.getLogger("EnhancedSocialCalc")
- 
+
 class EnhancedSocialCalculator:
     def __init__(self, api_manager: APIManager):
         self.api = api_manager
