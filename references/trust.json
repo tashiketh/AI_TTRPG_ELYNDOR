@@ -1,0 +1,128 @@
+{
+  "trust_scale": [
+    {
+      "min": -100,
+      "max": -60,
+      "label": "mortal enemy",
+      "romantic_interest": "disgusted",
+      "category": "hostile",
+      "description": "Greatest desire is to harm or destroy."
+    },
+    {
+      "min": -59,
+      "max": -40,
+      "label": "enemy",
+      "romantic_interest": "repulsed",
+      "category": "hostile",
+      "description": "Actively seeks to harm or destroy."
+    },
+    {
+      "min": -39,
+      "max": -20,
+      "label": "adversary",
+      "romantic_interest": "repulsed",
+      "category": "hostile",
+      "description": "Distrustful and likely to resist or sabotage."
+    },
+    {
+      "min": -19,
+      "max": -10,
+      "label": "wary",
+      "romantic_interest": "distasteful",
+      "category": "hostile",
+      "description": "Guarded, suspicious, and minimally cooperative."
+    },
+    {
+      "min": -9,
+      "max": 9,
+      "label": "neutral",
+      "romantic_interest": "uninterested",
+      "category": "neutral",
+      "description": "No strong trust or hostility."
+    },
+    {
+      "min": 10,
+      "max": 20,
+      "label": "friendly acquaintance",
+      "romantic_interest": "potentially curious",
+      "category": "friendly",
+      "description": "Generally friendly and polite."
+    },
+    {
+      "min": 21,
+      "max": 30,
+      "label": "trusted friend",
+      "romantic_interest": "welcoming and attracted",
+      "category": "friendly",
+      "description": "Helpful and emotionally warm."
+    },
+    {
+      "min": 31,
+      "max": 40,
+      "label": "close bond",
+      "romantic_interest": "interested and very attracted",
+      "category": "close_bond",
+      "description": "Willing to take meaningful risks."
+    },
+    {
+      "min": 41,
+      "max": 50,
+      "label": "deep bond",
+      "romantic_interest": "interested and very attracted, will actively pursue a relationship",
+      "category": "close_bond",
+      "description": "Feels strong loyalty and dedication."
+    },
+    {
+      "min": 51,
+      "max": 80,
+      "label": "unshakable bond",
+      "romantic_interest": "adulation, will pursue any potential relationship",
+      "category": "close_bond",
+      "description": "Extraordinary loyalty."
+    },
+    {
+      "min": 81,
+      "max": 200,
+      "label": "worship",
+      "romantic_interest": "Will do literally anything for a hint of affection",
+      "category": "absolute_trust",
+      "description": "Will believe or go alonge with literally anything."
+    }
+  ],
+  "mood_scale": [
+    {
+      "max": -20,
+      "label": "hostile / depressed",
+      "description": "Openly hostile, sad, or depressed."
+    },
+    {
+      "min": -19,
+      "max": -5,
+      "label": "cold / obstructive",
+      "description": "Guarded, withholding, and likely to resist cooperation."
+    },
+    {
+      "min": -4,
+      "max": 4,
+      "label": "neutral / transactional",
+      "description": "Not feeling any particular mood."
+    },
+    {
+      "min": 5,
+      "max": 9,
+      "label": "helpful / cooperative / somewhat good mood",
+      "description": "Willing to cooperate within reasonable limits or cheerful."
+    },
+    {
+      "min": 10,
+      "max": 19,
+      "label": "satisfied / protective / protected / good mood",
+      "description": "Protective, proactive, and happy with the situtation."
+    },
+    {
+      "min": 20,
+      "label": "happy / fulfilled / content",
+      "description": "Protective, proactive, and very happy with the situtation."
+    }
+  ]
+}

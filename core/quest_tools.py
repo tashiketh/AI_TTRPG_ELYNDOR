@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from path_config import path_config
 from helper_functions import roll_generic_check
+from inventory_tools import add_currency_to_player
 
 # Quest categories
 QUEST_CATEGORIES = {
@@ -437,12 +438,25 @@ def complete_quest(quest_id: str) -> Dict:
                 }
                 rewards_distributed.setdefault("items", []).append(item)
 
-    # Gold rewards
+    # Currency rewards. Legacy quest data still uses "gold"; convert it into the wallet.
     if quest["rewards"].get("gold", 0) > 0:
         player = game_state.setdefault("player", {})
-        current_gold = player.get("gold", 0)
-        player["gold"] = current_gold + quest["rewards"]["gold"]
-        rewards_distributed["gold"] = quest["rewards"]["gold"]
+        snapshot = add_currency_to_player(player, gold=quest["rewards"]["gold"])
+        rewards_distributed["currency"] = {
+            "gold_awarded": quest["rewards"]["gold"],
+            "wallet": snapshot,
+        }
+    if isinstance(quest["rewards"].get("currency"), dict):
+        player = game_state.setdefault("player", {})
+        reward_currency = quest["rewards"]["currency"]
+        snapshot = add_currency_to_player(
+            player,
+            copper=reward_currency.get("copper", 0),
+            silver=reward_currency.get("silver", 0),
+            gold=reward_currency.get("gold", 0),
+            platinum=reward_currency.get("platinum", 0),
+        )
+        rewards_distributed["currency"] = {"wallet": snapshot}
 
     # Reputation rewards
     if quest["rewards"].get("reputation", 0) > 0:

@@ -9,20 +9,107 @@ from datetime import datetime
 from pathlib import Path
 from path_config import path_config
 
-# Constants
-RELATIONSHIP_LEVELS = {
-    "mortal enemy": -40,
-    "enemy": -20,
-    "adversary": -10,
-    "neutral": 0,
-    "friend": 5,
-    "companion": 10,
-    "lover": 20,
-    "spouse": 30
-}
-
 # Persistent NPC state (replace with game_state integration in production)
 NPC_STATE: Dict[str, Dict[str, Any]] = {}
+
+def _coerce_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+def load_trust_reference() -> Dict[str, Any]:
+    """Load trust and mood bands from references/trust.json."""
+    try:
+        with open(path_config.trust_reference_path, "r", encoding="utf-8") as f:
+            reference = json.load(f)
+    except Exception as e:
+        print(f"Warning: Failed to load trust reference data: {e}")
+        return {"trust_scale": [], "mood_scale": [], "reaction_bands": []}
+    if not isinstance(reference, dict):
+        return {"trust_scale": [], "mood_scale": [], "reaction_bands": []}
+    trust_scale = reference.get("trust_scale", [])
+    mood_scale = reference.get("mood_scale", reference.get("reaction_bands", []))
+    reaction_bands = reference.get("reaction_bands", mood_scale)
+    return {
+        "trust_scale": trust_scale if isinstance(trust_scale, list) else [],
+        "mood_scale": mood_scale if isinstance(mood_scale, list) else [],
+        "reaction_bands": reaction_bands if isinstance(reaction_bands, list) else [],
+    }
+
+def _band_bounds(band: Dict[str, Any]) -> Tuple[float, float]:
+    min_value = _coerce_float(band.get("min"), -float("inf")) if band.get("min") is not None else -float("inf")
+    max_value = _coerce_float(band.get("max"), float("inf")) if band.get("max") is not None else float("inf")
+    return min_value, max_value
+
+def _band_for_value(bands: List[Dict[str, Any]], value: Any) -> Dict[str, Any]:
+    numeric_value = _coerce_float(value)
+    valid_bands = [band for band in bands if isinstance(band, dict) and band.get("label")]
+    for band in valid_bands:
+        min_value, max_value = _band_bounds(band)
+        if min_value <= numeric_value <= max_value:
+            return dict(band)
+    if not valid_bands:
+        return {"label": "neutral", "description": "", "min": 0, "max": 0}
+    sorted_bands = sorted(valid_bands, key=lambda band: _band_bounds(band)[0])
+    if numeric_value < _band_bounds(sorted_bands[0])[0]:
+        return dict(sorted_bands[0])
+    return dict(sorted_bands[-1])
+
+def get_trust_band(trust: Any) -> Dict[str, Any]:
+    """Return the trust-scale band for a numeric trust value."""
+    return _band_for_value(load_trust_reference().get("trust_scale", []), trust)
+
+def get_trust_band_by_label(label: Any) -> Dict[str, Any]:
+    """Return the trust-scale band matching a label."""
+    normalized = str(label or "").strip().lower()
+    for band in load_trust_reference().get("trust_scale", []):
+        if isinstance(band, dict) and str(band.get("label", "")).strip().lower() == normalized:
+            return dict(band)
+    return get_trust_band(0)
+
+def get_relationship_level(trust: Any) -> str:
+    """Return the relationship/trust label for a numeric trust value."""
+    return str(get_trust_band(trust).get("label") or "neutral")
+
+def get_relationship_data(value: Any) -> Dict[str, Any]:
+    """Return normalized trust-band details by numeric trust or label."""
+    if isinstance(value, str):
+        band = get_trust_band_by_label(value)
+    else:
+        band = get_trust_band(value)
+    min_value, max_value = _band_bounds(band)
+    band["trust"] = (min_value, max_value)
+    return band
+
+def get_reaction_band(affinity: Any) -> Dict[str, Any]:
+    """Return the legacy reaction band for a trust/affinity value."""
+    return _band_for_value(load_trust_reference().get("reaction_bands", []), affinity)
+
+def get_behavior_band(affinity: Any) -> str:
+    """Return the legacy reaction label for a trust/affinity value."""
+    return str(get_reaction_band(affinity).get("label") or "neutral / transactional")
+
+def get_mood_band(mood_score: Any) -> Dict[str, Any]:
+    """Return the mood-scale band for a numeric mood score."""
+    return _band_for_value(load_trust_reference().get("mood_scale", []), mood_score)
+
+def get_mood_label(mood_score: Any) -> str:
+    """Return the mood label for a numeric mood score."""
+    return str(get_mood_band(mood_score).get("label") or "neutral / transactional")
+
+def get_mood_score(character: Dict[str, Any], default: float = 0.0) -> float:
+    """Return the numeric mood score, supporting legacy mood_score saves."""
+    identity = get_character_identity(character)
+    value = identity.get("mood", identity.get("mood_score", default))
+    try:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return default
+        return round(float(value), 2)
+    except (TypeError, ValueError):
+        return default
 
 def get_character_identity(character: Dict[str, Any]) -> Dict[str, Any]:
     """Return canonical nested identity data, with legacy fallback."""
@@ -32,12 +119,22 @@ def get_character_identity(character: Dict[str, Any]) -> Dict[str, Any]:
 def get_character_field(character: Dict[str, Any], field: str, default: Any = None) -> Any:
     """Read a character/NPC field from the current template shape."""
     identity = get_character_identity(character)
+    relationships = identity.get("relationships", {}) if isinstance(identity.get("relationships"), dict) else {}
+    player_rel = relationships.get("player", {}) if isinstance(relationships, dict) else {}
+    if field == "trust" and "trust" not in identity and isinstance(player_rel, dict) and "trust" in player_rel:
+        return player_rel.get("trust", default)
+    if field == "relationship":
+        return get_relationship_level(get_character_field(character, "trust", 0))
+    if field == "mood":
+        return get_mood_score(character, default)
+    if field == "mood_score":
+        return get_mood_score(character, default)
+    if field == "mood_label":
+        return get_mood_label(get_mood_score(character, 0))
+    if field in {"interaction_history", "last_interaction"}:
+        return identity.get(field, character.get(field, default))
     if field in identity:
         return identity.get(field, default)
-    if field == "relationship":
-        player_rel = identity.get("relationships", {}).get("player", {})
-        if isinstance(player_rel, dict):
-            return player_rel.get("relationship", default)
     return character.get(field, default)
 
 SKILL_ALIASES = {
@@ -47,11 +144,14 @@ SKILL_ALIASES = {
     "Social": "communication",
     "Crafting": "smithing",
     "Survival": "survival",
+    "Slight of Hand": "sleight of hand",
+    "slight of hand": "sleight of hand",
+    "Sleight of Hand": "sleight of hand",
 }
 
 
 def normalize_skill_name(skill_name: Optional[str]) -> Optional[str]:
-    """Normalize skill IDs to references/skills.csv names."""
+    """Normalize skill IDs to combined skill/DC reference names."""
     if not skill_name:
         return None
     return SKILL_ALIASES.get(skill_name, str(skill_name).strip().lower())
@@ -94,7 +194,7 @@ def weighted_roll(num_dice: int = 4, die_sides: int = 25) -> int:
 def roll_generic_check(
     entity_id: Optional[str] = None,      # None or "player" → player; else npc_id
     stats_used: Optional[List[str]] = None,       # Required: at least one stat
-    skill_used: Optional[str] = None,             # Optional: single skill from skills.csv
+    skill_used: Optional[str] = None,             # Optional: single skill from skills_with_dc.json
     situational_bonus: float = 0.0,     # e.g. +5 for good RP/planning, -5 for poor
     difficulty_class: int = 50
 ) -> Dict[str, Any]:
@@ -148,6 +248,8 @@ def roll_generic_check(
         is_player = False
 
     skill_used = normalize_skill_name(skill_used)
+    if is_player and skill_used == "sleight of hand" and "slight of hand" in player_skills and "sleight of hand" not in player_skills:
+        player_skills["sleight of hand"] = player_skills.pop("slight of hand")
 
     # Calculate modifier
     avg_stat = sum(stats.get(stat, 10) for stat in stats_used) / num_stats
@@ -342,6 +444,7 @@ def init_npc_state(npc_name: str) -> Dict[str, Any]:
         NPC_STATE[npc_id] = {
             "trust": get_character_field(npc_data, "trust", 0.0),
             "npc_race": get_character_field(npc_data, "race", "human"),
+            "mood": get_character_field(npc_data, "mood", 0.0),
             "deviation_range": get_character_field(npc_data, "deviation_range", 15),
             "tier": get_character_field(npc_data, "tier", 0),
             "relationship": get_character_field(npc_data, "relationship", "neutral")
@@ -385,13 +488,16 @@ def update_npc_state(
     identity = get_character_identity(npc_entry)
     for field, value in fields.items():
         if field == "relationship":
-            player_rel = identity.setdefault("relationships", {}).setdefault("player", {})
-            if isinstance(player_rel, dict):
-                player_rel["relationship"] = value
-        elif field == "trust_level":
+            continue
+        elif field in {"trust", "trust_level"}:
             identity["trust"] = value
-        elif field == "emotional_response":
-            identity["mood"] = value
+        elif field in {"emotional_response", "mood", "mood_score"}:
+            try:
+                identity["mood"] = round(float(value), 2)
+            except (TypeError, ValueError):
+                pass
+        elif field in {"interaction_history", "last_interaction"}:
+            identity[field] = value
         else:
             identity[field] = value
 
@@ -430,10 +536,8 @@ def calc_situational_mods(npc_name: str, rep_known: bool = False) -> float:
         else:
             reputation = 0
         npc_id = find_npc_id_by_name(npc_name, npcs)
-        if npc_id:
-            relationship = get_character_field(npcs.get(npc_id, {}), "relationship", "neutral")
-            relation_mod = RELATIONSHIP_LEVELS.get(relationship, 0)
-        else:
+        relation_mod = 0
+        if not npc_id:
             # Fallback to racial bias
             npc_race = game_state.get("world", {}).get("location", {}).get("kingdom", "Human")
             relation_mod = get_baseline_bias(npc_race, player["identity"]["race"])
@@ -452,7 +556,7 @@ def create_new_npc(
     personality_reference: str = "Unknown",
     location: str = "Unknown",
     known_facts: Optional[List[str]] = None,
-    mood: str = "neutral",
+    mood: Any = 0.0,
     relationship: str = "neutral"  # optional, defaults neutral
 ) -> str:
     """
@@ -467,7 +571,7 @@ def create_new_npc(
         personality_reference: Personality reference
         location: Starting location
         known_facts: List of known facts
-        mood: Current mood
+        mood: Numeric current mood score
         relationship: Relationship to player
 
     Returns:
@@ -514,6 +618,7 @@ def create_new_npc(
     trust = round(bias / 3) + random.uniform(-deviation_range, deviation_range)
 
     stat_block = generate_stats(race, sex)
+    mood_score = _coerce_float(mood, 0.0)
 
     # Build new NPC entry
     new_npc = {
@@ -529,7 +634,7 @@ def create_new_npc(
         "location": location,
         "relationship": relationship,
         "known_facts": known_facts,
-        "mood": mood
+        "mood": round(mood_score, 2)
     }
 
     # Add to npcs

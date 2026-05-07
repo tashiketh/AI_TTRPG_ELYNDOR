@@ -201,7 +201,7 @@ def create_npc(
         "trust": base_trust,
         "deviation_range": random.choice([5, 7, 10, 15]),
         "relationship": "neutral",
-        "mood": "neutral",
+        "mood": 0.0,
         "status": "active",
         "inventory": inventory or {},
         "relationships": relationships or {},
@@ -326,19 +326,26 @@ def update_npc_relationship(npc_id: str, target_id: str, relationship: str) -> D
         "message": f"Updated relationship between {npc_id} and {target_id} to {relationship}"
     }
 
-def update_npc_mood(npc_id: str, new_mood: str) -> Dict:
+def update_npc_mood(npc_id: str, new_mood: Any) -> Dict:
     """
-    Update an NPC's current mood.
+    Update an NPC's current numeric mood score.
 
     Args:
         npc_id: ID of the NPC
-        new_mood: New mood
+        new_mood: New numeric mood score
 
     Returns:
         Dictionary with success status
     """
+    try:
+        mood_score = round(float(new_mood), 2)
+    except (TypeError, ValueError):
+        return {
+            "success": False,
+            "message": "NPC mood must be a numeric score"
+        }
     return update_npc(npc_id, {
-        "mood": new_mood,
+        "mood": mood_score,
         "mood_updated_at": datetime.now().isoformat()
     })
 
@@ -433,7 +440,7 @@ def get_npcs_by_location(location: str) -> Dict:
                 "role": npc_info["role"],
                 "faction": npc_info["faction"],
                 "relationship": npc_info.get("relationship", "neutral"),
-                "mood": npc_info.get("mood", "neutral")
+                "mood": npc_info.get("mood", 0.0)
             })
 
     return {

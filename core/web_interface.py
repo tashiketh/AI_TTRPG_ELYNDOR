@@ -9,6 +9,7 @@ import requests
 import traceback
 from path_config import path_config
 from game_config import game_config
+from inventory_tools import currency_snapshot, normalize_inventory_collection, normalize_player_currency
 
 
 WEB_DEFAULT_PORT = game_config.int("web.default_port", 5000, min_value=1, max_value=65535)
@@ -64,6 +65,12 @@ class WebInterface:
         def serve_static(filename):
             return send_from_directory(self.static_dir, filename)
 
+        @self.app.after_request
+        def add_no_cache_headers(response):
+            if request.path == "/" or request.path.startswith("/static/"):
+                response.headers["Cache-Control"] = "no-store, max-age=0"
+            return response
+
         # ==================== API ROUTES ====================
         @self.app.route("/api/game_state")
         def get_game_state():
@@ -105,8 +112,14 @@ class WebInterface:
             if not self.game_engine:
                 return jsonify([])
             state = self.game_engine.get_game_state()
-            inv = state.get("player", {}).get("inventory", [])
-            return jsonify(inv)
+            player = state.get("player", {}) if isinstance(state, dict) else {}
+            if isinstance(player, dict):
+                normalize_player_currency(player)
+            inv = player.get("inventory", []) if isinstance(player, dict) else []
+            return jsonify({
+                "currency": currency_snapshot(player if isinstance(player, dict) else {}),
+                "items": normalize_inventory_collection(inv),
+            })
 
         @self.app.route("/api/token_usage")
         def get_token_usage():

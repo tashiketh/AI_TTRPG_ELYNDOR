@@ -1,7 +1,6 @@
 # character_creation.py
 import json
 import os
-import csv
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 import re
@@ -211,7 +210,7 @@ SKILL_KEYWORDS = {
     "enchanting": ["electronics", "engineering", "programming", "runes", "magic items", "crafting"],
     "medicine": ["doctor", "nurse", "medic", "emt", "paramedic", "first aid", "air force", "army", "medical"],
     "animal handling": ["animals", "veterinary", "vet", "horses", "farm", "pets", "dog training"],
-    "slight of hand": ["sleight", "lockpick", "magic tricks", "pickpocket", "fine motor", "juggling"],
+    "sleight of hand": ["sleight", "lockpick", "magic tricks", "pickpocket", "fine motor", "juggling"],
     "research": ["research", "library", "study", "scholar", "academic", "reading", "programmer", "engineer"]
 }
 
@@ -248,22 +247,30 @@ class CharacterCreator:
         }
 
     def _load_skill_definitions(self) -> Dict[str, List[str]]:
-        """Load skills and their stat sources from references/skills.csv."""
+        """Load skills and their stat sources from the combined skill/DC reference."""
         skills: Dict[str, List[str]] = {}
         try:
             with open(path_config.skills_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
+                loaded = json.load(f)
+                rows = loaded.get("skills", []) if isinstance(loaded, dict) else loaded
+                if not isinstance(rows, list):
+                    rows = []
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
                     name = row.get("skill_name", "").strip().lower()
+                    raw_stats = row.get("stats_used", [])
+                    if isinstance(raw_stats, str):
+                        raw_stats = raw_stats.replace('"', "").split(",")
                     stats = [
                         stat.strip().title()
-                        for stat in row.get("stats_used", "").replace('"', "").split(",")
+                        for stat in raw_stats
                         if stat.strip()
                     ]
                     if name and stats:
                         skills[name] = stats
         except Exception as e:
-            print(f"Warning: Failed to load skills.csv: {e}")
+            print(f"Warning: Failed to load skills_with_dc.json: {e}")
 
         return skills or {
             "melee weapons": ["Str", "Agi"],
@@ -272,6 +279,7 @@ class CharacterCreator:
             "survival": ["Ins", "Vit"],
             "communication": ["Crea", "Ins"],
             "smithing": ["Crea", "Str"],
+            "sleight of hand": ["Agi", "Ins"],
         }
     
     def validate_name(self, name: str) -> Optional[str]:
@@ -693,7 +701,7 @@ class CharacterCreator:
             "derived": self._calculate_derived_attributes(final_stats),
             "inventory": {},
             "equipment": {},
-            "gold": 50
+            "currency": {"copper": 500000}
         }
         
         return {
@@ -725,7 +733,7 @@ class CharacterCreator:
         return result
     
     def _calculate_initial_skills(self, stats: Dict[str, int], background: str) -> Dict[str, float]:
-        """Initialize all references/skills.csv skills at zero."""
+        """Initialize all combined-reference skills at zero."""
         return {skill_name: 0.0 for skill_name in self.skill_definitions}
     
     def _calculate_derived_attributes(self, stats: Dict[str, int]) -> Dict[str, float]:

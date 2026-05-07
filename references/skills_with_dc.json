@@ -1,0 +1,380 @@
+[
+  {
+    "skill_name": "social_check",
+    "skill_description": "Interacting with NPCs",
+    "stats_used": [
+
+    ],
+    "dc_examples": {
+      "15": "Trivial: Acting in the direct interest of the NPC with no negative consequences for the NPC.",
+      "25": "Very Easy: Casual interactions with no significant impact.",
+      "35": "Easy: Ask an acquaintance for a minor favor, negotiate a small discount, or share non-sensitive information.",
+      "50": "Neutral: Make a request that a person would normally need convincing to do.",
+      "60": "Difficult: Ask for a significant personal favor or make a request that causes embarrassment or minor personal loss.",
+      "65": "Very Difficult: Convince a NPC to act against their own interest.",
+      "80": "Improbable: Convince a NPC to take an action that would cause them significant harm or loss.",
+      "100": "Impossible: Convince a NPC to perform an action that they are unlikely to survive."
+    }
+  },
+  {
+    "skill_name": "melee weapons",
+    "skill_description": "Using or practicing or combat with close-combat weapons (swords; axes; spears; polearms etc.)",
+    "stats_used": [
+      "str",
+      "agi"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Successfully strike a stationary wooden training dummy with a basic overhead swing.",
+      "25": "Very Easy: Land a clean hit on a slow, untrained bandit who leaves themselves open.",
+      "35": "Easy: Hit an average city guard who is actively parrying and circling in a duel.",
+      "50": "Neutral: hit an experienced mercenary.",
+      "60": "Difficult: Disarm or deliver a critical wound to a heavily armored knight in a prolonged fight.",
+      "65": "Very Difficult: Make a specifically targeted disabling attack.",
+      "80": "Improbable: Make a specifically targeted disabling attack on an aware enemy.",
+      "100": "Impossible: Hit a quickly moving and tiny target."
+    }
+  },
+  {
+    "skill_name": "unarmed combat",
+    "skill_description": "Using or practicing or combat without weapons (punches; kicks; grapples; martial arts)",
+    "stats_used": [
+      "str",
+      "agi"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Land a solid punch on a heavy training bag or stationary target.",
+      "25": "Very Easy: Execute a basic combo on a slow, unskilled drunk in a tavern brawl.",
+      "35": "Easy: Grapple and throw an average opponent who is resisting but untrained.",
+      "50": "Neutral: Win a fair, prolonged fistfight against a trained street brawler or soldier.",
+      "60": "Difficult: Knock out or submit a stronger, armored opponent with precise joint locks and strikes.",
+      "65": "Very Difficult: Defeat three attackers at once using advanced martial arts and environment.",
+      "80": "Improbable: Take down an armed opponent bare-handed while they have the initiative and allies nearby.",
+      "100": "Impossible: Defeat a legendary martial artist or supernatural being with only your fists in zero gravity."
+    }
+  },
+  {
+    "skill_name": "ranged weapons",
+    "skill_description": "Using or practicing or combat using bows; crossbows; thrown weapons; slings or other ranged attacks",
+    "stats_used": [
+      "str",
+      "agi"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Hit a large, stationary target (like a barn door) at close range with a bow.",
+      "25": "Very Easy: Strike a man-sized target at 20 meters with a crossbow while standing still.",
+      "35": "Easy: Hit a moving target at medium range (40m) with a bow while the target walks predictably.",
+      "50": "Neutral: Bullseye a small target (apple on a post) at long range (80m) in light wind.",
+      "60": "Difficult: Hit a dodging, zigzagging enemy from horseback at 60 meters during a chase.",
+      "65": "Very Difficult: Snipe a specific weak point (eye slit) on a heavily armored foe at extreme range.",
+      "80": "Improbable: Make a ricochet or trick shot to hit a hidden target around a corner to save an ally.",
+      "100": "Impossible: Hit a fly on a wall from 200 meters away during a hurricane with a thrown knife."
+    }
+  },
+  {
+    "skill_name": "shields",
+    "skill_description": "Using or practicing with shields for defense; blocking and bashing",
+    "stats_used": [
+      "str",
+      "vit"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Block a weak, telegraphed attack from a training partner with your shield.",
+      "25": "Very Easy: Bash a slow opponent with your shield to stagger them and create an opening.",
+      "35": "Easy: Hold a defensive position and block multiple strikes from one average foe.",
+      "50": "Neutral: Maintain a shield wall in formation while blocking arrows and melee from several attackers.",
+      "60": "Difficult: Shield-bash a charging, armored knight off their feet and follow up effectively.",
+      "65": "Very Difficult: Protect an entire group of allies from a concentrated arrow volley or spell barrage.",
+      "80": "Improbable: Single-handedly hold a narrow breach in a castle wall against overwhelming numbers.",
+      "100": "Impossible: Survive and block a direct hit from a trebuchet stone or dragon breath with your shield."
+    }
+  },
+  {
+    "skill_name": "spellcasting",
+    "skill_description": "Using in combat or practicing casting; controlling and sustaining magical spells and effects",
+    "stats_used": [
+      "crea",
+      "will"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Cast a simple cantrip (light, minor illusion) without any chance of failure.",
+      "25": "Very Easy: Maintain concentration on a basic ongoing spell (like mage armor) for several minutes.",
+      "35": "Easy: Accurately cast a combat spell like burning hands or magic missile at a visible target.",
+      "50": "Neutral: Sustain a powerful area-of-effect spell (fireball, wall of force) while enemies attack you.",
+      "60": "Difficult: Successfully counterspell a high-level incoming spell from an enemy caster.",
+      "65": "Very Difficult: Cast a complex, high-level ritual spell while actively engaged in deadly combat.",
+      "80": "Improbable: Weave together multiple high-level spells simultaneously to turn the tide of a losing battle.",
+      "100": "Impossible: Rewrite the fundamental laws of magic itself to achieve a wish-level effect under extreme duress."
+    }
+  },
+  {
+    "skill_name": "athletics",
+    "skill_description": "Exercising or practicing skill in physical feats of strength; acrobatics; endurance; climbing; jumping and running",
+    "stats_used": [
+      "agi",
+      "str",
+      "vit"
+    ],
+    "dc_examples": {
+      "15": "Trivial: run across a flat, stable surface without any risk of falling.",
+      "25": "Very Easy: Jump over a low fence (1 meter) or climb a short ladder with ease.",
+      "35": "Easy: Dodge a slow-moving thrown object like an apple or dodge a predictable attack.",
+      "50": "Neutral: Climb a 2-meter wall with obvious handholds and footholds in normal conditions.",
+      "60": "Difficult: Dodge a fast arrow in flight or balance on a narrow 10cm beam 3 meters up.",
+      "65": "Very Difficult: Walk a tightrope in strong wind or climb a 10-meter overhang with few holds.",
+      "80": "Improbable: Scale a 15-meter sheer cliff face, swim upstream through dangerous rapids, or jump an 8-10 meter gap.",
+      "100": "Impossible: Perform a perfect somersault over a 3-meter (10 foot) wall or scale a 30-meter vertical wall with zero handholds."
+    }
+  },
+  {
+    "skill_name": "survival",
+    "skill_description": "Exercising or practicing skill in foraging; tracking; navigating wilderness; building shelters and enduring harsh conditions",
+    "stats_used": [
+      "ins",
+      "vit"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Identify and safely eat common edible berries or mushrooms in a familiar forest.",
+      "25": "Very Easy: Build a basic lean-to shelter that keeps you dry in light rain.",
+      "35": "Easy: Navigate to a known nearby landmark using the sun, stars, and simple landmarks.",
+      "50": "Neutral: Successfully track a large animal (deer) through moderate terrain for several hours.",
+      "60": "Difficult: Forage or hunt enough food and water for a group of 4 in a harsh but survivable wilderness for a day.",
+      "65": "Very Difficult: Survive a full night in a blizzard by building an insulated snow cave and maintaining body heat.",
+      "80": "Improbable: Navigate and survive alone for a week in a deadly jungle with no tools or supplies.",
+      "100": "Impossible: Thrive and remain healthy for a month in an arctic wasteland with no equipment or prior knowledge."
+    }
+  },
+  {
+    "skill_name": "stealth",
+    "skill_description": "Exercising or practicing skill in hiding; moving silently; avoiding detection and ambush tactics",
+    "stats_used": [
+      "ins",
+      "agi"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Hide behind a large barrel or in deep shadows in a quiet, empty room.",
+      "25": "Very Easy: Sneak past a single distracted guard who is not actively searching.",
+      "35": "Easy: Move silently across a creaky wooden floor without alerting anyone in the next room.",
+      "50": "Neutral: Remain hidden while a small patrol actively searches the area with torches and dogs.",
+      "60": "Difficult: Pickpocket a wealthy noble in a crowded, well-lit marketplace without any suspicion.",
+      "65": "Very Difficult: Infiltrate a heavily guarded fortress at night, bypassing multiple patrols and traps.",
+      "80": "Improbable: Assassinate a high-profile target in broad daylight and escape completely undetected.",
+      "100": "Impossible: Remain completely undetected while surrounded by an entire army, including their mages, scouts, and magical wards."
+    }
+  },
+  {
+    "skill_name": "investigation",
+    "skill_description": "Exercising or practicing skill in searching for clues; analyzing scenes; solving puzzles and noticing hidden details",
+    "stats_used": [
+      "ins",
+      "crea"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Notice an obviously dropped clue (bloody knife) in a well-lit room.",
+      "25": "Very Easy: Find a hidden compartment in a desk drawer after a quick search.",
+      "35": "Easy: Piece together basic motives and timeline from 2-3 witness statements with minor contradictions.",
+      "50": "Neutral: Solve a standard murder mystery with planted evidence, red herrings, and conflicting alibis.",
+      "60": "Difficult: Uncover a secret society’s hidden plot from scattered documents and coded messages.",
+      "65": "Very Difficult: Deduce the exact weakness and plan of a powerful, hidden villain from minimal clues.",
+      "80": "Improbable: Solve an ancient, legendary riddle or puzzle that has baffled scholars for centuries.",
+      "100": "Impossible: Unravel a multi-planar cosmic conspiracy that threatens the fabric of reality itself."
+    }
+  },
+  {
+    "skill_name": "communication",
+    "skill_description": "Exercising or practicing skill in misdirection; deception; persuasion; negotiation; intimidation; frightening; or inspiring others",
+    "stats_used": [
+      "crea",
+      "ins"
+    ],
+    "dc_examples": {
+      "15": "Trivial: A merchant automatically sells you their standard product, or convince a stranger to do something in their own best interest.",
+      "25": "Very Easy: Get someone to move aside, share basic directions, engage in casual small talk, or buy uncommon goods.",
+      "35": "Easy: Ask an acquaintance for a minor favor, negotiate a small discount, or share non-sensitive information.",
+      "50": "Neutral: Conduct standard trade negotiations or request moderate help from a neutral NPC.",
+      "60": "Difficult: Ask for a significant personal favor or make a request that causes embarrassment to a stranger.",
+      "65": "Very Difficult: Convince someone to betray an ally, risk their life for you, or reveal a guarded secret.",
+      "80": "Improbable: Convince a sworn enemy to defect, a stranger to give up a valuable item for free or fight for you against overwhelming odds.",
+      "100": "Impossible: Hold off an army alone through words, convince an entire faction to betray its cause for a stranger, or fundamentally change someone's alignment."
+    }
+  },
+  {
+    "skill_name": "tactics",
+    "skill_description": "Exercising or practicing skill in battle planning; positioning; strategy and commanding groups in combat",
+    "stats_used": [
+      "ins",
+      "crea"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Suggest a basic defensive formation for a small group of allies.",
+      "25": "Very Easy: Plan a simple ambush on a small, predictable patrol.",
+      "35": "Easy: Coordinate a basic flanking maneuver that gives your side a slight advantage in a skirmish.",
+      "50": "Neutral: Devise a solid battle plan that accounts for known enemy strengths and terrain.",
+      "60": "Difficult: Turn the tide of a losing battle through clever repositioning and use of environment.",
+      "65": "Very Difficult: Outmaneuver a numerically superior force using terrain, timing, and deception.",
+      "80": "Improbable: Win a war against a much larger and better-equipped army through brilliant long-term strategy.",
+      "100": "Impossible: Defeat an immortal god-king or cosmic entity through pure tactical and strategic genius alone."
+    }
+  },
+  {
+    "skill_name": "smithing",
+    "skill_description": "Exercising or practicing skill in forging; repairing and improving metal weapons; armor and tools",
+    "stats_used": [
+      "crea",
+      "str"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Repair a small dent or sharpen a dull blade on a simple metal tool.",
+      "25": "Very Easy: Forge a basic, functional horseshoe or a handful of sturdy nails.",
+      "35": "Easy: Craft a simple, reliable iron dagger or repair a broken shield boss.",
+      "50": "Neutral: Create a well-balanced, high-quality steel longsword with proper tempering.",
+      "60": "Difficult: Forge a set of masterwork plate armor pieces with intricate joint articulation.",
+      "65": "Very Difficult: Improve an existing legendary weapon with better balance, edge geometry, and custom engravings.",
+      "80": "Improbable: Craft a true artifact-level weapon capable of harming demons or cutting through magic.",
+      "100": "Impossible: Forge a sword that can slice through any known material (including adamantine) while ignoring all physical laws."
+    }
+  },
+  {
+    "skill_name": "woodworking",
+    "skill_description": "Exercising or practicing skill in carving; shaping and crafting wooden items (bows; staves; furniture; traps)",
+    "stats_used": [
+      "crea",
+      "agi"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Carve a simple wooden spoon or whittle a basic stake.",
+      "25": "Very Easy: Shape a sturdy walking staff or repair a broken wooden chair leg.",
+      "35": "Easy: Build a functional, comfortable wooden chair or small table from raw lumber.",
+      "50": "Neutral: Craft a high-quality longbow with excellent draw weight and accuracy.",
+      "60": "Difficult: Create an elaborate, spring-loaded wooden trap or complex puzzle box.",
+      "65": "Very Difficult: Accurately construct a large siege engine component (catapult arm) under time pressure.",
+      "80": "Improbable: Carve a breathtakingly detailed masterwork statue or a self-playing musical instrument.",
+      "100": "Impossible: Build a fully functional flying wooden ornithopter that defies gravity and carries multiple people."
+    }
+  },
+  {
+    "skill_name": "leatherworking",
+    "skill_description": "Exercising or practicing skill in tanning; shaping and crafting leather items (armor; tools; furniture; clothing)",
+    "stats_used": [
+      "crea",
+      "agi"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Sew a simple leather patch or repair a torn belt.",
+      "25": "Very Easy: Tan and shape a basic leather belt or small pouch.",
+      "35": "Easy: Craft a set of basic leather armor pieces (bracers, greaves) that fit well.",
+      "50": "Neutral: Create a complete suit of well-fitted, durable leather armor with proper reinforcement.",
+      "60": "Difficult: Make a masterwork saddle or intricate tooled leather armor with artistic designs.",
+      "65": "Very Difficult: Design and craft waterproof, insulated clothing that protects against extreme cold or heat.",
+      "80": "Improbable: Craft legendary dragonhide armor from rare materials that grants significant magical resistance.",
+      "100": "Impossible: Create leather items that grant true supernatural abilities (invisibility, flight, or regeneration)."
+    }
+  },
+  {
+    "skill_name": "alchemy",
+    "skill_description": "Exercising or practicing skill in brewing potions; poisons; explosives and magical concoctions",
+    "stats_used": [
+      "crea",
+      "ins"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Brew a basic herbal tea or simple salve that soothes minor aches.",
+      "25": "Very Easy: Mix a weak smoke bomb, basic poison, or mild healing draught.",
+      "35": "Easy: Create a standard healing potion that restores a moderate amount of health.",
+      "50": "Neutral: Brew a powerful explosive flask or a strong antidote to common poisons.",
+      "60": "Difficult: Synthesize a potion that grants temporary superhuman strength or invisibility for minutes.",
+      "65": "Very Difficult: Distill a rare elixir that cures a magical or otherwise incurable disease.",
+      "80": "Improbable: Create a philosopher’s stone-like substance that can transmute metals or extend life significantly.",
+      "100": "Impossible: Brew a potion that grants true immortality, godlike power, or the ability to rewrite reality."
+    }
+  },
+  {
+    "skill_name": "enchanting",
+    "skill_description": "Exercising or practicing skill in imbuing items with magical effects; runes and enchantments",
+    "stats_used": [
+      "crea",
+      "ins"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Imbue a simple item with a faint glow or minor warmth effect.",
+      "25": "Very Easy: Add a basic durability or sharpness rune to a tool or weapon.",
+      "35": "Easy: Enchant a weapon with a minor combat bonus (+1 to hit or damage).",
+      "50": "Neutral: Create a cloak or ring that provides moderate concealment or minor magical protection.",
+      "60": "Difficult: Imbue a full suit of armor with strong elemental resistance (fire, cold, or lightning).",
+      "65": "Very Difficult: Craft a ring or amulet that allows limited teleportation or flight for short distances.",
+      "80": "Improbable: Enchant an item with powerful reality-warping effects (time stop, wish-like magic).",
+      "100": "Impossible: Create a true artifact capable of granting wishes, raising the dead, or fundamentally altering fate and reality."
+    }
+  },
+  {
+    "skill_name": "medicine",
+    "skill_description": "Exercising or practicing skill in healing wounds; treating illnesses; applying first aid and using herbs",
+    "stats_used": [
+      "ins",
+      "will"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Apply basic first aid to stop minor bleeding and clean a small wound.",
+      "25": "Very Easy: Treat a minor sprain, common cold, or small infection with known herbs.",
+      "35": "Easy: Properly set a broken bone, stitch a deep wound, or cure a moderate fever.",
+      "50": "Neutral: Perform field surgery to remove an arrow, treat internal bleeding, or save someone from severe trauma.",
+      "60": "Difficult: Heal life-threatening injuries or neutralize a rare, fast-acting poison in time.",
+      "65": "Very Difficult: identigy an unknown disease, perform a complex organ transplant, or revive someone from clinical death.",
+      "80": "Improbable: Re-attach a severed limb.",
+      "100": "Impossible: Bring a person back from the absolute brink of death against all medical odds."
+    }
+  },
+  {
+    "skill_name": "animal handling",
+    "skill_description": "Exercising or practicing skill in calming; training; riding and communicating with animals and beasts",
+    "stats_used": [
+      "ins",
+      "crea"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Calm a friendly, well-trained dog or horse with a soothing voice and touch.",
+      "25": "Very Easy: Train a pet to perform a simple trick like 'sit' or 'fetch' reliably.",
+      "35": "Easy: Ride a calm horse at a trot or canter without falling off.",
+      "50": "Neutral: Train a falcon to hunt on command or teach a guard dog advanced protection behaviors.",
+      "60": "Difficult: Calm, befriend, and eventually ride a wild or aggressive large beast.",
+      "65": "Very Difficult: Control and fight from the back of a wild, exotic, and intelligent mount like a griffin in battle.",
+      "80": "Improbable: Command a pack of wolves or a herd of wild horses to attack or defend against a superior force.",
+      "100": "Impossible: Befriend, tame, and ride an aggressive legendary creature like a phoenix, dragon, or ancient spirit beast."
+    }
+  },
+  {
+    "skill_name": "sleight of hand",
+    "skill_description": "Exercising or practicing skill in thievery; lockpicking; or sleight of hand tricks",
+    "stats_used": [
+      "agi",
+      "ins"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Palm a small coin or hide a tiny object in your hand unnoticed by casual observers.",
+      "25": "Very Easy: Pick a simple padlock or basic chest lock with improvised tools.",
+      "35": "Easy: Steal a small pouch or wallet from a distracted merchant in a busy street.",
+      "50": "Neutral: Pick a complex, high-quality lock or plant incriminating evidence without detection.",
+      "60": "Difficult: Cheat convincingly at high-stakes cards or dice in a room full of suspicious professionals.",
+      "65": "Very Difficult: Infiltrate a heavily secured vault, swap a real gem with a fake, and escape undetected.",
+      "80": "Improbable: Steal the crown jewels from the most guarded vault in the kingdom during a royal ceremony.",
+      "100": "Impossible: Pickpocket a god, swap an item in another dimension, or steal the moon itself."
+    }
+  },
+  {
+    "skill_name": "research",
+    "skill_description": "Skill in researching lore; finding clues through study; and developing/experimenting with new spells",
+    "stats_used": [
+      "ins",
+      "crea"
+    ],
+    "dc_examples": {
+      "15": "Trivial: Recall basic, well-known facts from a book or scroll you have studied before.",
+      "25": "Very Easy: Locate specific information in a small, organized library or archive.",
+      "35": "Easy: Adapt known information in new ways, such as adapting a spell.",
+      "50": "Neutral: Conduct effective research in a large and well stocked library.",
+      "60": "Difficult: Develop new information through research and experimentation.",
+      "65": "Very Difficult: Develop a revolutionary new theory that challenges established magical or scientific dogma.",
+      "80": "Improbable: Invent a groundbreaking discovery (new school of magic, powerful artifact formula) that changes the world.",
+      "100": "Impossible: Unlock the ultimate secrets of the cosmos, the nature of magic itself, or create an entirely new form of existence."
+    }
+  }
+]

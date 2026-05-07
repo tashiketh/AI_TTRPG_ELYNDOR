@@ -40,26 +40,71 @@ function scrollToBottom() {
         output.scrollTop = output.scrollHeight;
     }
 }
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[ch]));
+}
+function formatItemNumber(value) {
+    if (value === undefined || value === null || value === '') return '';
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return escapeHtml(value);
+    return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(2).replace(/\.?0+$/, '');
+}
 // Make sure inventory loads when tab is clicked
 async function loadInventory() {
     const grid = document.getElementById('inventoryGrid');
     grid.innerHTML = '<p>Loading inventory...</p>';
     try {
         const res = await fetch('/api/inventory');
-        const inventory = await res.json();
+        const payload = await res.json();
+        const inventory = payload.items || payload || {};
+        const currency = payload.currency || {display: '0 copper', denominations: {}};
         grid.innerHTML = '';
+        const currencyBar = document.createElement('div');
+        currencyBar.className = 'currency-bar';
+        const denominations = currency.denominations || {};
+        currencyBar.innerHTML = `
+            <div class="currency-label">Currency</div>
+            <div class="currency-total">${escapeHtml(currency.display || '0 copper')}</div>
+            <div class="currency-denoms">
+                <span>PP ${escapeHtml(denominations.platinum || 0)}</span>
+                <span>GP ${escapeHtml(denominations.gold || 0)}</span>
+                <span>SP ${escapeHtml(denominations.silver || 0)}</span>
+                <span>CP ${escapeHtml(denominations.copper || 0)}</span>
+            </div>
+        `;
+        grid.appendChild(currencyBar);
         if (Object.keys(inventory || {}).length === 0) {
-            grid.innerHTML = '<p>Your inventory is empty.</p>';
+            const empty = document.createElement('p');
+            empty.textContent = 'Your inventory is empty.';
+            grid.appendChild(empty);
             return;
         }
         Object.values(inventory).forEach(item => {
             const div = document.createElement('div');
             div.className = 'inventory-item';
+            const name = item.name || item.archetype || item.type || item.id || 'Unknown Item';
+            const quantity = item.qty ?? item.quantity;
+            const details = [
+                item.archetype || item.type,
+                item.condition,
+                Array.isArray(item.tags) && item.tags.length ? item.tags.join(', ') : ''
+            ].filter(Boolean).map(escapeHtml).join(' • ');
+            const weaponStats = ['damage', 'speed', 'range', 'weight', 'price']
+                .filter(key => item[key] !== undefined && item[key] !== null)
+                .map(key => `${key}: ${formatItemNumber(item[key])}`)
+                .join(' • ');
             div.innerHTML = `
-                <div class="item-name">${item.name || 'Unknown Item'}</div>
+                <div class="item-name">${escapeHtml(name)}</div>
                 <div class="item-details">
-                    ${item.quantity ? item.quantity + '× ' : ''}${item.archetype || item.type || ''}
-                    ${item.description ? `<br><small>${item.description}</small>` : ''}
+                    ${quantity ? `${escapeHtml(quantity)}× ` : ''}${details}
+                    ${weaponStats ? `<br><small>${weaponStats}</small>` : ''}
+                    ${item.description ? `<br><small>${escapeHtml(item.description)}</small>` : ''}
                 </div>
             `;
             grid.appendChild(div);
@@ -121,13 +166,18 @@ function renderOpeningScene(gameState) {
     if (!output) return;
     const scenario = gameState.scenario || {};
     const opening = scenario.opening_scene || {};
-    const sceneText = scenario.current_scene || opening.text;
+    const resume = gameState.resume_context || {};
+    const resumeText = resume.last_dm_narrative || '';
+    const sceneText = resumeText || scenario.current_scene || opening.text;
     if (!sceneText) return;
     const defaultText = 'Welcome, adventurer. What would you like to do?';
     const alreadyRendered = output.dataset.openingSceneRendered === 'true';
     if (alreadyRendered || output.textContent.trim() !== defaultText) return;
     output.textContent = '';
-    appendTranscriptLine(output, 'DM', sceneText, 'opening-scene-line');
+    appendTranscriptLine(output, 'DM', sceneText, resumeText ? 'resume-scene-line' : 'opening-scene-line');
+    if (resume.last_player_input) {
+        updateLastPlayerInput(resume.last_player_input);
+    }
     output.dataset.openingSceneRendered = 'true';
 }
 // Player Character Sheet - Two Column Layout
@@ -148,19 +198,14 @@ function updateCharacterSheet(player) {
         <div class="player-sheet">
             <div class="player-header">
                 <div class="player-title">
-                    <h2>${id.name || 'Your_name_here'}</h2>
+                    <h2>${id.name || 'Aburi'}</h2>
                     <p class="subtitle">${(id.race || 'Human').toUpperCase()} • ${id.class_theme || 'Isekai Adventurer'}</p>
                     <p class="background">${id.background || 'A former database analyst pulled into Elyndor.'}</p>
                 </div>
-                <div class="player-portrait" id="playerPortraitContainer">
+                <div class="player-portrait">
                     <img src="/static/images/${id.name}.png" 
-                        alt="${id.name}"
-                        style="display: none;"
-                        onerror="handleMissingPortrait(this, '${id.name || 'Your_name_here'}')">
-                    <div class="image-note" id="playerPortraitNote">
-                        Save your character image as:<br>
-                        <strong>./static/images/${id.name || 'Your_name_here'}.png</strong>
-                    </div>
+                         onerror="this.src='/static/images/default-character.png'" 
+                         alt="${id.name}">
                 </div>
             </div>
 
@@ -393,16 +438,18 @@ function showPartyMember(npc) {
                     <p><strong>Location:</strong> ${npc.location || '—'}</p>
                 </div>
             </div>
+
             <!-- Right Column: Portrait -->
-            <div class="character-portrait">
-                <img src="/static/images/${npc.name}.png" 
-                    alt="${npc.name}"
-                    class="character-portrait-img"
+            <div class="player-portrait" id="playerPortraitContainer">
+                <img id="playerPortraitImg"
+                    src="/static/images/${id.name}.png"
+                    alt="${id.name}"
                     style="display: none;"
-                    onerror="handleMissingPortrait(this, '${npc.name}')">
-                <div class="image-note" style="display:block; margin-top:10px;">
-                    Save character image as:<br>
-                    <strong>./static/images/${npc.name}.png</strong>
+                    onerror="tryNextImageFormat(this, '${id.name || 'Aburi'}')">
+                <div class="image-note" id="playerPortraitNote" style="display: none;">
+                    Save your character image as:<br>
+                    <strong>./static/images/${id.name || 'Aburi'}.png</strong><br>
+                    <small>(or .jpg, .jpeg, or .webp)</small>
                 </div>
             </div>
         </div>
@@ -412,10 +459,18 @@ function showPartyMember(npc) {
         loadQuests();
     }
 }
-function handleMissingPortrait(img, name) {
-    img.style.display = 'none';
-    const note = document.getElementById('playerPortraitNote');
-    if (note) {
-        note.style.display = 'block';
+function tryNextImageFormat(img, baseName) {
+    const formats = ['.png', '.jpg', '.jpeg', '.webp'];
+    let currentIndex = formats.indexOf(img.src.slice(-4).toLowerCase());
+    
+    // If current format failed, try the next one
+    if (currentIndex < formats.length - 1) {
+        const nextFormat = formats[currentIndex + 1];
+        img.src = `/static/images/${baseName}${nextFormat}`;
+    } else {
+        // All formats failed → show the help message
+        img.style.display = 'none';
+        const note = document.getElementById('playerPortraitNote');
+        if (note) note.style.display = 'block';
     }
 }

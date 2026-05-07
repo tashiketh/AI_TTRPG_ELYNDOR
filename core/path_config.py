@@ -82,11 +82,15 @@ class PathConfig:
 
     @property
     def skills_path(self):
-        return self.references_dir / "skills.csv"
+        return self.skill_dc_reference_path
 
     @property
-    def dc_reference_path(self):
-        return self.references_dir / "DC.json"
+    def skill_dc_reference_path(self):
+        return self.references_dir / "skills_with_dc.json"
+
+    @property
+    def trust_reference_path(self):
+        return self.references_dir / "trust.json"
 
     @property
     def backup_dir(self):

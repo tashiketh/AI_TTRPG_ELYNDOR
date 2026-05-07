@@ -30,6 +30,7 @@ API_CALL_HISTORY_LIMIT = game_config.int("api.call_history_limit", 100, min_valu
 API_CONTEXT_MAX_TOKENS = game_config.int("api.context_max_tokens", 1000, min_value=1)
 API_OPTIMIZED_INTERACTION_HISTORY_LIMIT = game_config.int("api.optimized_interaction_history_limit", 3, min_value=0)
 API_DEFAULT_MAX_TOKENS = game_config.int("api.default_max_tokens", 500, min_value=1)
+DEFAULT_UNEVALUATED_DC = game_config.int("mechanics.default_unevaluated_dc", 45, min_value=1, max_value=100)
 DEFAULT_CONTEXT_MODEL = "mistral-small-latest"
 DEFAULT_NPC_MODEL = "mistral-large-latest"
 DEFAULT_DM_MODEL = "mistral-large-latest"
@@ -92,11 +93,23 @@ class APIManager:
             prompts_path = path_config.references_dir / "api_prompts.json"
             if prompts_path.exists():
                 with open(prompts_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    return self._harden_system_prompts(json.load(f))
         except Exception as e:
             logger.warning(f"Could not load system prompts: {e}")
         
-        return self._get_default_prompts()
+        return self._harden_system_prompts(self._get_default_prompts())
+
+    def _harden_system_prompts(self, prompts: Dict[str, str]) -> Dict[str, str]:
+        """Apply non-negotiable runtime prompt guardrails to loaded references."""
+        prompts = dict(prompts or {})
+        guardrail = (
+            "Do not request or invent updates to trust, relationship, mood, mood_score, "
+            "or emotional_response; Python mechanics own those values."
+        )
+        prompt = prompts.get("npc_action_review", "")
+        if guardrail not in prompt:
+            prompts["npc_action_review"] = f"{prompt}\n\nMECHANICS OWNERSHIP:\n{guardrail}".strip()
+        return prompts
 
     def _get_default_prompts(self) -> Dict[str, str]:
         """Return default system prompts if file loading fails"""
@@ -110,42 +123,64 @@ Apply story_context.knowledge_priority: Story Bible first, saved game_state fact
             Apply story_context.knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.""",
 
             "social_check_detection": """Return only JSON with this shape:
-{"needs_social_check":false,"target_npc":"","interaction_type":"appeal","reason":"short reason"}
+{"needs_social_check":false,"target_npc":"","interaction_type":"appeal","difficulty_class":0,"reason":"short reason"}
 
 Set needs_social_check true whenever the player tries to influence, comfort, persuade, deceive, threaten, bargain with, question, recruit, calm, or request something from a specific NPC.
 Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
+Use context.social_dc_reference from skills_with_dc.json. Use dc_examples as scale anchors for the inherent request difficulty only; do not adjust for trust, relationship, mood, fear, injuries, threats, leverage, gifts, or scene pressure.
+45 is reserved as the unevaluated/default DC sentinel. Do not use 45 as an evaluated base DC.
+Use known_npcs by npc_id, known_name, or reference_label.
 Do not include markdown or prose.""",
             
 
             "npc_action_review": """You review each NPC's immediate action separately from DM narration.
             Apply story_context.knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
-            Return JSON with npc_actions, where each action has npc_id, name, action, dialogue, body_language, and constraints.""",
+            Treat story_context.world_time as authoritative; do not describe a conflicting time of day.
+            Use active_npc_profiles first; each NPC's dialogue must match the saved voice_profile and personality, not the DM's descriptive voice.
+            active_npc_profiles may include private display_name for the NPC's self-knowledge. known_name/reference_label show what the player currently knows.
+            If npc_social_context is present, treat it as authoritative for the NPC's current trust category, mood, roll result, and margin.
+            Do not request or invent updates to trust, relationship, mood, mood_score, or emotional_response; Python mechanics own those values.
+            Do not reveal display_name in dialogue unless this is the moment the NPC intentionally gives that name to the player.
+            Return JSON with npc_actions, where each action has npc_id, name, action, dialogue, body_language, and constraints.
+            Dialogue is the exact line this NPC would say if they speak; use an empty string if they do not speak.
+            The DM will quote provided dialogue exactly, so do not include alternate versions or narration in dialogue.""",
 
             "turn_context_evaluation": """Return only JSON with this shape:
 {"involved_npcs":[],"relevant_races":[],"likely_intent":"","mechanical_risks":[],"continuity_constraints":[],"forbidden_assumptions":[],"scene_focus":"","relevant_lore_keys":[]}
 
-Select only context that matters for this turn. Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last. Do not narrate.""",
+Select only context that matters for this turn. Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
+world_time is authoritative; do not infer a conflicting time of day from stale summaries or recent exchanges. Do not narrate.""",
 
             "narrative_brief": """Return only JSON with this shape:
 {"scene_brief":"","relevant_lore":[],"active_npcs":[],"mechanical_constraints":{},"continuity_constraints":[],"forbidden_assumptions":[]}
 
 Build a compact brief for the NPC narrator and DM. Include only facts that affect this turn.
 Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
+world_time is authoritative; do not promote stale time-of-day prose from summaries or recent exchanges.
+Never soften, reverse, or ignore a failed roll; a failed roll must create a concrete setback, complication, cost, lost opportunity, or worsened position tied to that roll.
+Never turn a successful roll into failure; margin may affect cost or cleanliness, not reverse the outcome.
 active_npcs must only include recurring NPCs from known_npcs; never include the player, mobs, enemies, victims, or reference-library characters.""",
+
+            "ooc_question": """You are answering an out-of-character player note as the DM/referee.
+Return only JSON with this shape:
+{"answer":"OOC note - concise answer"}
+
+Use the supplied saved context to answer the player's question. Do not advance the scene, trigger rolls, perform social checks, speak as an NPC, summarize as narration, or emit commands. If the saved context does not establish the answer, say that plainly. Begin answer with "OOC note - ".""",
 
             "skill_check_detection": """Return only JSON with this shape:
 {"needs_skill_check":false,"skill":"","stats_used":[],"difficulty_class":0,"reason":"short reason","stakes":""}
 
 Use a skill check whenever success is uncertain and failure matters: stealth, searching, tracking, medicine, survival, crafting, athletics, investigation, magic, tools, or perception.
 Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last.
-Pick varied DCs: 15 trivial, 25 very easy, 35 easy, 45 moderate-low, 55 moderate-high, 65 difficult, 80 very hard, 95 extreme.
-Do not default to 50. Use 50 only if the situation is truly average.
+Use context.skill_dc_reference from skills_with_dc.json. Pick skill exactly from skill_name and use its stats_used. Use dc_examples as scale anchors, but do not snap or clamp difficulty_class to the listed examples; interpolate when the task falls between examples.
+The base DC is the inherent task difficulty only. Leave scene facts such as tools, darkness, pressure, cover, distance, enemy awareness, and injury for the later modifier pass.
+45 is reserved as the unevaluated/default DC sentinel. Do not use 45 as an evaluated base DC; use it only if you cannot select from the reference. Use 50 only when the task is truly comparable to the 50 example for that skill.
 Do not include markdown or prose.""",
 
             "dc_evaluation": """Return only strict JSON with this shape:
-{"base_dc":50,"candidate_modifiers":[{"fact":"","category":"","scope":"","effect":"helps","modifier":0,"relevance":0,"reason":""}],"notes":""}
+{"base_dc":45,"candidate_modifiers":[{"fact":"","category":"","scope":"","effect":"helps","modifier":0,"relevance":0,"reason":""}],"notes":""}
 
-Use only the compact referee packet provided. Apply knowledge_priority: Story Bible first, saved game_state facts second, summaries/recent exchanges/model inference last. effect "helps" must use a negative modifier, effect "hurts" must use a positive modifier, and effect "neutral" must use 0. Never use a plus sign in JSON numbers; write 2, not +2. Most facts should be 0, 1, 2, -1, or -2. Use 5+ only for significant factors, 10+ for major factors, and 20 only for overwhelming factors. Do not compute the final DC; Python will apply only the top 3 positive and top 3 negative modifiers.""",
+Use only the compact referee packet provided: current_player_input, last_interaction, proposed_check, skill_reference, and known_facts. skill_reference is the full selected entry from skills_with_dc.json. known_facts contains saved scene/world/player/NPC facts plus world_time. The base DC was already chosen by skill_check_detection; echo proposed_check.base_dc exactly and do not re-evaluate it. Use known_facts and last_interaction only for practical situational modifiers. Do not use outside lore, unstated assumptions, or narrative history beyond this packet. effect "helps" must use a negative modifier, effect "hurts" must use a positive modifier, and effect "neutral" must use 0. Never use a plus sign in JSON numbers; write 2, not +2. Most facts should be 0, 1, 2, -1, or -2. Use 5+ only for significant factors, 10+ for major factors, and 20 only for overwhelming factors. Do not modify DC for character stats, skill ranks, bonuses, or lack of training. Do not compute the final DC; Python will apply only the top 3 positive and top 3 negative modifiers.""",
 
             "turn_summary": """Summarize this completed RPG turn in one concise line.
             Do not promote speculation or lower-priority inference into durable truth.
@@ -232,7 +267,8 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
                 "name": optimized["npc_profile"].get("name", ""),
                 "personality": optimized["npc_profile"].get("personality", {}),
                 "relationship": optimized["npc_profile"].get("relationship_with_player", "neutral"),
-                "mood": optimized["npc_profile"].get("current_mood", "neutral"),
+                "mood": optimized["npc_profile"].get("current_mood", 0),
+                "mood_label": optimized["npc_profile"].get("current_mood_label", "neutral / transactional"),
                 "voice_style": optimized["npc_profile"].get("voice_style", "normal")
             }
 
@@ -296,7 +332,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             return self.npc_model
         if prompt_type == "turn_summary":
             return self.summary_model
-        if prompt_type in {"turn_context_evaluation", "narrative_brief", "social_check_detection", "skill_check_detection", "dc_evaluation"}:
+        if prompt_type in {"turn_context_evaluation", "narrative_brief", "social_check_detection", "skill_check_detection", "dc_evaluation", "ooc_question"}:
             return self.context_model
         return self.model
 
@@ -578,7 +614,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             "unseen", "undetected", "creep", "under the cover", "under cover"
         ])
         if stealth_intent:
-            dc = self._estimate_contextual_dc(player_action, context, 45, "stealth")
+            dc = self._estimate_contextual_dc(player_action, context, DEFAULT_UNEVALUATED_DC, "stealth")
             return {
                 "needs_skill_check": True,
                 "skill": "stealth",
@@ -589,7 +625,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             }
 
         if self._word_present(player_action, ["file", "rivet", "chain", "manacle", "forge", "smith"]):
-            dc = self._estimate_contextual_dc(player_action, context, 45, "smithing")
+            dc = self._estimate_contextual_dc(player_action, context, DEFAULT_UNEVALUATED_DC, "smithing")
             return {
                 "needs_skill_check": True,
                 "skill": "smithing",
@@ -608,7 +644,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
                     "reason": "The searching actor is not the player.",
                     "stakes": ""
                 }
-            dc = self._estimate_contextual_dc(player_action, context, 45, "search")
+            dc = self._estimate_contextual_dc(player_action, context, DEFAULT_UNEVALUATED_DC, "search")
             return {
                 "needs_skill_check": True,
                 "skill": "investigation",
@@ -618,7 +654,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
                 "stakes": "Success finds useful items or clues; failure misses them, costs time, or increases exposure."
             }
         if self._word_present(player_action, ["bandage", "wound", "bleeding", "medicine", "heal", "stabilize", "clean the wound"]):
-            dc = self._estimate_contextual_dc(player_action, context, 50, "medicine")
+            dc = self._estimate_contextual_dc(player_action, context, DEFAULT_UNEVALUATED_DC, "medicine")
             return {
                 "needs_skill_check": True,
                 "skill": "medicine",
@@ -628,7 +664,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
                 "stakes": "Success stabilizes the patient; failure worsens bleeding, infection risk, or noise."
             }
         if self._word_present(player_action, ["track", "tracks", "trail", "follow signs"]):
-            dc = self._estimate_contextual_dc(player_action, context, 45, "survival")
+            dc = self._estimate_contextual_dc(player_action, context, DEFAULT_UNEVALUATED_DC, "survival")
             return {
                 "needs_skill_check": True,
                 "skill": "survival",
@@ -658,12 +694,44 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             "whisper", "promise", "request", "beg", "comfort", "reassure",
             "help", "trust", "calm", "explain", "warn", "thank"
         ]
+        second_person_request_words = [
+            "can i", "may i", "could i", "should i", "let me", "allow me",
+            "would you let", "will you let", "do you want", "would you",
+            "will you", "can we", "shall i"
+        ]
+        direct_second_person_request = (
+            "you" in player_action
+            and self._word_present(player_action, second_person_request_words)
+        )
+
+        def npc_matches_ref(npc: Dict[str, Any], ref: Any) -> bool:
+            ref_text = str(ref or "").strip().lower()
+            if not ref_text:
+                return False
+            candidates = [
+                npc.get("npc_id", ""),
+                npc.get("known_name", ""),
+                npc.get("reference_label", ""),
+                npc.get("name", ""),
+                npc.get("display_name", ""),
+            ]
+            return any(str(candidate or "").strip().lower() == ref_text for candidate in candidates)
 
         target = ""
         for npc in known_npcs:
-            name = str(npc.get("name", "")).lower()
+            names = [
+                npc.get("known_name", ""),
+                npc.get("reference_label", ""),
+                npc.get("name", ""),
+                npc.get("display_name", ""),
+            ]
             npc_id = str(npc.get("npc_id", "")).lower()
-            if name and name in player_action:
+            if any(
+                str(name or "").lower()
+                and str(name or "").lower() != "unknown"
+                and str(name or "").lower() in player_action
+                for name in names
+            ):
                 target = npc.get("npc_id", npc.get("name", ""))
                 break
             if npc_id and npc_id in player_action:
@@ -678,14 +746,37 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             ]).lower()
             active_matches = []
             for npc in known_npcs:
-                name = str(npc.get("name", "")).lower()
+                names = [
+                    str(npc.get("known_name", "")).lower(),
+                    str(npc.get("reference_label", "")).lower(),
+                    str(npc.get("name", "")).lower(),
+                    str(npc.get("display_name", "")).lower(),
+                ]
                 npc_id = str(npc.get("npc_id", "")).lower()
-                if (name and name in scene_text) or (npc_id and npc_id in scene_text):
+                if any(name and name != "unknown" and name in scene_text for name in names) or (npc_id and npc_id in scene_text):
                     active_matches.append(npc)
             if len(active_matches) == 1:
                 target = active_matches[0].get("npc_id", active_matches[0].get("name", ""))
 
-        needs_check = bool(target) and any(word in player_action for word in social_words)
+        if not target and direct_second_person_request:
+            turn_context = context.get("turn_context", {}) if isinstance(context.get("turn_context"), dict) else {}
+            involved_refs = turn_context.get("involved_npcs", []) if isinstance(turn_context.get("involved_npcs"), list) else []
+            involved_matches = []
+            seen_ids = set()
+            for ref in involved_refs:
+                for npc in known_npcs:
+                    if npc_matches_ref(npc, ref):
+                        npc_id = str(npc.get("npc_id", "") or npc.get("name", ""))
+                        if npc_id and npc_id not in seen_ids:
+                            involved_matches.append(npc)
+                            seen_ids.add(npc_id)
+            if len(involved_matches) == 1:
+                target = involved_matches[0].get("npc_id", involved_matches[0].get("name", ""))
+
+        needs_check = bool(target) and (
+            any(word in player_action for word in social_words)
+            or direct_second_person_request
+        )
         interaction_type = "appeal"
         if self._word_present(player_action, ["threaten", "intimidate", "warn"]):
             interaction_type = "threat"
@@ -704,6 +795,7 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             "needs_social_check": needs_check,
             "target_npc": target,
             "interaction_type": interaction_type,
+            "difficulty_class": DEFAULT_UNEVALUATED_DC if needs_check else 0,
             "reason": "Detected social influence toward a known NPC." if needs_check else "No known NPC social target detected."
         }
 
@@ -732,33 +824,88 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             social_result = context.get("social_result", {})
             social_check = context.get("social_check", {})
             target_npc = social_check.get("target_npc", "")
+            profiles = context.get("active_npc_profiles", []) or []
+            profile_by_id = {
+                str(profile.get("npc_id")): profile
+                for profile in profiles
+                if isinstance(profile, dict) and profile.get("npc_id")
+            }
             npc_actions = []
             if target_npc and social_result:
+                mechanics = social_result.get("social_result") if isinstance(social_result.get("social_result"), dict) else social_result
                 reaction = social_result.get("npc_reaction", {})
+                npc_social_context = context.get("npc_social_context", {}) if isinstance(context.get("npc_social_context"), dict) else {}
+                profile = profile_by_id.get(str(target_npc), {})
+                voice = profile.get("voice_profile", {}) if isinstance(profile.get("voice_profile"), dict) else {}
+                personality = profile.get("personality", {}) if isinstance(profile.get("personality"), dict) else {}
+                example_dialogue = voice.get("example_dialogue", []) if isinstance(voice.get("example_dialogue"), list) else []
+                fallback_dialogue = example_dialogue[0] if example_dialogue else ""
+                npc_name = (
+                    profile.get("known_name")
+                    if profile.get("known_name") and profile.get("known_name") != "unknown"
+                    else profile.get("reference_label") or profile.get("display_name") or target_npc
+                )
                 npc_actions.append({
                     "npc_id": target_npc,
-                    "name": target_npc,
+                    "name": npc_name,
                     "action": "responds to the player's social approach",
-                    "dialogue": reaction.get("dialogue", "I'll consider that."),
-                    "body_language": reaction.get("body_language", "thoughtful"),
+                    "dialogue": reaction.get("dialogue", "") if isinstance(reaction, dict) and reaction.get("dialogue") else fallback_dialogue,
+                    "body_language": reaction.get("body_language", "") if isinstance(reaction, dict) else "",
                     "constraints": {
-                        "success": social_result.get("social_result", {}).get("success", False),
-                        "emotional_response": social_result.get("social_result", {}).get("emotional_response", "neutral"),
-                        "trust_change": social_result.get("social_result", {}).get("trust_change", 0)
+                        "success": mechanics.get("success", False),
+                        "emotional_response": mechanics.get("emotional_response") or mechanics.get("mood_label", "neutral"),
+                        "mood_delta": mechanics.get("mood_delta", 0),
+                        "mood": mechanics.get("new_mood_score"),
+                        "mood_label": mechanics.get("mood_label", ""),
+                        "trust_category": mechanics.get("trust_category", ""),
+                        "social_context": npc_social_context.get("instruction", ""),
+                        "trust_change": mechanics.get("trust_change", 0),
+                        "voice_profile": {
+                            "speech_style": voice.get("speech_style", ""),
+                            "quirks": voice.get("quirks", []),
+                            "forbidden": voice.get("forbidden", []),
+                        },
+                        "personality": {
+                            "core_trait": personality.get("core_trait", ""),
+                            "social_trait": personality.get("social_trait", ""),
+                        },
                     }
                 })
             return {"npc_actions": npc_actions, "notes": "Fallback NPC review"}
+
+        elif prompt_type == "ooc_question":
+            current_scene = " ".join(str(context.get("current_scene", "")).split())
+            scene_facts = context.get("scene_facts", []) if isinstance(context.get("scene_facts"), list) else []
+            recent_exchanges = context.get("recent_exchanges", []) if isinstance(context.get("recent_exchanges"), list) else []
+            details = []
+            if scene_facts:
+                details.append("Scene facts: " + "; ".join(str(fact) for fact in scene_facts[:3]))
+            if not details and recent_exchanges:
+                last_dm = recent_exchanges[-1].get("dm", "") if isinstance(recent_exchanges[-1], dict) else ""
+                if last_dm:
+                    details.append("Last DM response: " + " ".join(str(last_dm).split())[:240])
+            if not details and current_scene:
+                details.append("Current scene: " + current_scene[:240])
+            if not details:
+                details.append("The saved context does not establish that yet.")
+            return {"answer": "OOC note - " + " ".join(details)}
 
         elif prompt_type == "skill_check_detection":
             return self._infer_skill_check(context)
 
         elif prompt_type == "dc_evaluation":
             skill_check = context.get("skill_check", {}) or {}
-            base_dc = skill_check.get("difficulty_class") or context.get("suggested_base_dc") or 50
+            proposed_check = context.get("proposed_check", {}) or {}
+            base_dc = (
+                proposed_check.get("base_dc")
+                or skill_check.get("difficulty_class")
+                or context.get("suggested_base_dc")
+                or DEFAULT_UNEVALUATED_DC
+            )
             try:
                 base_dc = int(float(base_dc))
             except (TypeError, ValueError):
-                base_dc = 50
+                base_dc = DEFAULT_UNEVALUATED_DC
             return {
                 "base_dc": max(1, min(100, base_dc)),
                 "candidate_modifiers": [],
@@ -770,9 +917,14 @@ Use only the compact referee packet provided. Apply knowledge_priority: Story Bi
             action_text = str(context.get("player_input", "")).lower()
             involved_npcs = []
             for npc in known_npcs:
-                name = str(npc.get("name", "")).lower()
+                names = [
+                    str(npc.get("known_name", "")).lower(),
+                    str(npc.get("reference_label", "")).lower(),
+                    str(npc.get("name", "")).lower(),
+                    str(npc.get("display_name", "")).lower(),
+                ]
                 npc_id = str(npc.get("npc_id", "")).lower()
-                if (name and name in action_text) or (npc_id and npc_id in action_text):
+                if any(name and name != "unknown" and name in action_text for name in names) or (npc_id and npc_id in action_text):
                     involved_npcs.append(npc.get("npc_id") or npc.get("name"))
             if not involved_npcs and len(known_npcs) == 1 and any(word in action_text for word in ["her", "him", "them"]):
                 involved_npcs.append(known_npcs[0].get("npc_id") or known_npcs[0].get("name"))

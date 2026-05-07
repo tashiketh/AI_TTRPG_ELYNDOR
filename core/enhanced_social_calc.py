@@ -6,6 +6,7 @@ from pathlib import Path
 from path_config import path_config
 from api_integration import APIManager
 from social_calc import resolve_social_interaction as resolve_social_mechanics
+from helper_functions import get_relationship_level, get_mood_label, get_mood_score
 import logging
 import os
 
@@ -22,54 +23,58 @@ class EnhancedSocialCalculator:
 
     def _get_npc_field(self, npc_data: Dict[str, Any], field: str, default: Any = None) -> Any:
         identity = self._identity(npc_data)
+        relationships = identity.get("relationships", {}) if isinstance(identity.get("relationships"), dict) else {}
+        player_rel = relationships.get("player", {}) if isinstance(relationships, dict) else {}
+        if field == "name":
+            return identity.get("display_name") or identity.get("name") or npc_data.get("display_name") or npc_data.get("name", default)
+        if field == "display_name":
+            return identity.get("display_name") or identity.get("name") or npc_data.get("display_name", default)
+        if field == "known_name":
+            return identity.get("known_name", default)
+        if field == "trust" and "trust" not in identity and isinstance(player_rel, dict) and "trust" in player_rel:
+            return player_rel.get("trust", default)
+        if field == "relationship":
+            return get_relationship_level(self._get_npc_field(npc_data, "trust", 0))
+        if field in {"mood", "mood_score"}:
+            return get_mood_score(npc_data, default)
+        if field == "mood_label":
+            return get_mood_label(get_mood_score(npc_data, 0))
+        if field in {"interaction_history", "last_interaction"}:
+            return identity.get(field, npc_data.get(field, default))
         if field in identity:
             return identity.get(field, default)
-        if field == "relationship":
-            player_rel = identity.get("relationships", {}).get("player", {})
-            if isinstance(player_rel, dict):
-                return player_rel.get("relationship", default)
-        if field == "interaction_history":
-            player_rel = identity.get("relationships", {}).get("player", {})
-            if isinstance(player_rel, dict):
-                return player_rel.get("interaction_history", default)
         return npc_data.get(field, default)
 
     def _set_npc_field(self, npc_data: Dict[str, Any], field: str, value: Any):
         identity = npc_data.setdefault("identity", {})
         if field == "relationship":
-            player_rel = identity.setdefault("relationships", {}).setdefault("player", {})
-            if isinstance(player_rel, dict):
-                player_rel["relationship"] = value
             return
         if field == "interaction_history":
-            player_rel = identity.setdefault("relationships", {}).setdefault("player", {})
-            if isinstance(player_rel, dict):
-                player_rel["interaction_history"] = value
+            identity["interaction_history"] = value
             return
         if field == "last_interaction":
-            player_rel = identity.setdefault("relationships", {}).setdefault("player", {})
-            if isinstance(player_rel, dict):
-                player_rel["last_interaction"] = value
+            identity["last_interaction"] = value
             return
         if field == "emotional_response":
             field = "mood"
         if field == "trust_level":
             field = "trust"
+        if field in {"mood", "mood_score"}:
+            try:
+                identity["mood"] = round(float(value), 2)
+            except (TypeError, ValueError):
+                pass
+            return
         identity[field] = value
 
     def resolve_social_interaction(self, npc_id: str, interaction_type: str,
                                  player_action: str, difficulty_class: int = 50,
                                  story_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Enhanced social interaction resolution with API integration"""
+        """Resolve social mechanics without generating competing narrative prose."""
         # Load NPC data
         npc_data = self._load_npc_data(npc_id)
         if not npc_data:
             return self._generate_error_response(f"NPC {npc_id} not found")
-
-        # Prepare context for API
-        api_context = self._prepare_social_context(
-            npc_data, interaction_type, player_action, difficulty_class
-        )
 
         social_result = self._resolve_mechanical_social_result(
             npc_id=npc_id,
@@ -78,16 +83,16 @@ class EnhancedSocialCalculator:
             npc_data=npc_data,
         )
 
-        # Generate narrative
-        narrative_context = self._prepare_narrative_context(npc_data, social_result, player_action, story_context)
-        narrative = self.api.call_api("narrative_generation", narrative_context)
+        self._mark_generation_stage_skipped(
+            "narrative_generation",
+            "Social prose is handled by npc_action_review constraints and final DM narration.",
+        )
+        self._mark_generation_stage_skipped(
+            "dialogue_generation",
+            "Final NPC dialogue is handled by the DM narration stage.",
+        )
 
-        # Generate NPC dialogue
-        dialogue_context = self._prepare_dialogue_context(npc_data, social_result, story_context)
-        dialogue = self.api.call_api("dialogue_generation", dialogue_context)
-
-        # Combine results
-        final_response = self._combine_responses(npc_id, npc_data, social_result, narrative, dialogue)
+        final_response = self._combine_responses(npc_id, npc_data, social_result, {}, {})
         final_response.setdefault("metadata", {})
         final_response["metadata"]["interaction_type"] = interaction_type
         final_response["metadata"]["player_action"] = player_action
@@ -96,6 +101,23 @@ class EnhancedSocialCalculator:
         self._update_npc_state(npc_id, final_response)
 
         return final_response
+
+    def _mark_generation_stage_skipped(self, prompt_type: str, reason: str):
+        """Make per-stage debug files explicit when a deprecated stage is not called."""
+        if not hasattr(self.api, "write_prompt_debug") or not hasattr(self.api, "write_response_debug"):
+            return
+        marker = {"skipped": True, "reason": reason}
+        payload = {
+            "model": "not-called",
+            "temperature": 0,
+            "max_tokens": 0,
+            "messages": [],
+        }
+        try:
+            self.api.write_prompt_debug(prompt_type, payload, marker, source="enhanced_social_calc")
+            self.api.write_response_debug(prompt_type, marker, marker, model="not-called")
+        except Exception as e:
+            logger.debug(f"Failed to write skipped debug marker for {prompt_type}: {e}")
 
     def _map_interaction_type(self, interaction_type: str) -> str:
         """Map model-facing interaction labels to social_calc's mechanical labels."""
@@ -135,6 +157,9 @@ class EnhancedSocialCalculator:
                 "old_relationship": "neutral",
                 "new_relationship": "neutral",
                 "emotional_response": "uncertain",
+                "mood": 0,
+                "mood_label": "neutral / transactional",
+                "mood_delta": 0,
                 "consequences": [result["message"]],
                 "margin": 0,
                 "difficulty_class": difficulty_class,
@@ -148,8 +173,17 @@ class EnhancedSocialCalculator:
             "relationship_changed": result.get("relationship_changed", False),
             "old_relationship": result.get("old_relationship", "neutral"),
             "new_relationship": result.get("new_relationship", "neutral"),
-            "emotional_response": result.get("behavior", "neutral"),
-            "consequences": [f"Behavior band: {result.get('behavior', 'unknown')}"],
+            "trust_category": result.get("trust_category", "neutral"),
+            "emotional_response": result.get("mood_label", result.get("behavior", "neutral")),
+            "mood": result.get("mood"),
+            "mood_label": result.get("mood_label", result.get("behavior", "neutral")),
+            "old_mood": result.get("old_mood"),
+            "new_mood": result.get("new_mood"),
+            "old_mood_score": result.get("old_mood_score"),
+            "new_mood_score": result.get("new_mood_score"),
+            "mood_delta": result.get("mood_delta", 0),
+            "mood_description": result.get("mood_description", ""),
+            "consequences": [f"Mood band: {result.get('mood_label', result.get('behavior', 'unknown'))}"],
             "margin": result.get("margin", 0),
             "roll": result.get("roll"),
             "initial_roll": result.get("initial_roll"),
@@ -236,7 +270,8 @@ class EnhancedSocialCalculator:
                 "race": npc_race,
                 "personality": self._get_npc_field(npc_data, "personality", {}),
                 "relationship_with_player": self._get_npc_field(npc_data, "relationship", "neutral"),
-                "current_mood": self._get_npc_field(npc_data, "mood", "neutral"),
+                "current_mood": self._get_npc_field(npc_data, "mood", 0),
+                "current_mood_label": self._get_npc_field(npc_data, "mood_label", "neutral"),
                 "trust": trust,
                 "deviation_range": self._get_npc_field(npc_data, "deviation_range", 10)
             },
@@ -277,7 +312,7 @@ class EnhancedSocialCalculator:
         """Prepare context for NPC dialogue generation"""
         return {
             "npc_voice_profile": self._get_npc_field(npc_data, "voice_profile", {}),
-            "current_mood": social_result.get("emotional_response", self._get_npc_field(npc_data, "mood", "neutral")),
+            "current_mood": social_result.get("mood_label", social_result.get("emotional_response", self._get_npc_field(npc_data, "mood_label", "neutral"))),
             "relationship": social_result.get("new_relationship", self._get_npc_field(npc_data, "relationship", "neutral")),
             "interaction_success": social_result.get("success", False),
             "trust": social_result.get("new_trust", self._get_npc_field(npc_data, "trust", 0)),
@@ -289,15 +324,17 @@ class EnhancedSocialCalculator:
 
     def _combine_responses(self, npc_id: str, npc_data: Dict, social_result: Dict,
                            narrative: Dict, dialogue: Dict) -> Dict[str, Any]:
-        """Combine all API responses into final structure"""
+        """Combine social mechanics into the compatibility structure."""
         return {
-            "narrative": narrative.get("narrative", "The NPC responds to your request."),
+            "narrative": narrative.get("narrative", ""),
             "social_result": {
                 "success": social_result.get("success", False),
                 "trust_change": social_result.get("trust_change", 0),
                 "relationship_change": social_result.get("relationship_changed", False),
                 "new_relationship": social_result.get("new_relationship", "neutral"),
                 "emotional_response": social_result.get("emotional_response", "neutral"),
+                "mood": social_result.get("mood"),
+                "mood_label": social_result.get("mood_label", social_result.get("emotional_response", "neutral")),
                 "consequences": social_result.get("consequences", []),
                 "margin": social_result.get("margin", 0),
                 "roll": social_result.get("roll"),
@@ -307,12 +344,19 @@ class EnhancedSocialCalculator:
                 "dc_adjustment": social_result.get("dc_adjustment", 0),
                 "old_trust": social_result.get("old_trust"),
                 "new_trust": social_result.get("new_trust"),
+                "trust_category": social_result.get("trust_category"),
+                "old_mood": social_result.get("old_mood"),
+                "new_mood": social_result.get("new_mood"),
+                "old_mood_score": social_result.get("old_mood_score"),
+                "new_mood_score": social_result.get("new_mood_score"),
+                "mood_delta": social_result.get("mood_delta", 0),
+                "mood_description": social_result.get("mood_description", ""),
                 "source": social_result.get("source", "social_calc")
             },
             "npc_reaction": {
-                "dialogue": dialogue.get("dialogue", "I'll consider that."),
-                "body_language": dialogue.get("body_language", "neutral"),
-                "mood": social_result.get("emotional_response", "neutral")
+                "dialogue": dialogue.get("dialogue", ""),
+                "body_language": dialogue.get("body_language", ""),
+                "mood": social_result.get("mood_label", social_result.get("emotional_response", "neutral"))
             },
             "game_effects": self._determine_game_effects(social_result),
             "metadata": {
@@ -344,8 +388,10 @@ class EnhancedSocialCalculator:
                 if interaction_result["social_result"]["relationship_change"]:
                     self._set_npc_field(npc_data, "relationship", interaction_result["social_result"]["new_relationship"])
 
-                # Update mood based on emotional response
-                self._set_npc_field(npc_data, "mood", interaction_result["npc_reaction"]["mood"])
+                # Update short-term mood based on social roll margin
+                social_payload = interaction_result["social_result"]
+                if social_payload.get("new_mood_score") is not None:
+                    self._set_npc_field(npc_data, "mood", social_payload.get("new_mood_score"))
 
                 # Save updated game state
                 with open(game_state_path, "w", encoding="utf-8") as f:
@@ -370,7 +416,7 @@ class EnhancedSocialCalculator:
 
     def _get_recent_interactions(self, npc_data: Dict, limit: int = 3) -> List[Dict]:
         """Get recent interaction history"""
-        history = npc_data.get("interaction_history", [])
+        history = self._get_npc_field(npc_data, "interaction_history", [])
         return history[-limit:] if history else []
 
     def _load_game_state(self) -> Dict:
@@ -523,7 +569,8 @@ class EnhancedSocialCalculator:
             "npc_reaction": {
                 "dialogue": "An error occurred.",
                 "body_language": "confused",
-                "mood": "neutral"
+                "mood": 0,
+                "mood_label": "neutral / transactional"
             },
             "game_effects": {},
             "metadata": {

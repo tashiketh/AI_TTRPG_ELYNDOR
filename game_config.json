@@ -44,6 +44,73 @@
       ]
     }
   },
+  "scene_memory": {
+    "max_facts_per_scope": {
+      "value": 12,
+      "default": 12,
+      "note": "Maximum keyed scene facts retained in each scene_facts scope. Local facts describe the immediate scene; carryover facts follow the player across scene changes.",
+      "used_by": [
+        "core.game_engine.GameEngine._upsert_scene_fact",
+        "core.game_engine.GameEngine._normalize_scene_facts",
+        "core.game_engine.GameEngine._apply_scene_update"
+      ]
+    }
+  },
+  "mechanics": {
+    "default_unevaluated_dc": {
+      "value": 45,
+      "default": 45,
+      "note": "Diagnostic fallback DC used when skill/DC evaluation cannot determine a base DC. This value is intentionally not one of the reference example DCs.",
+      "used_by": [
+        "core.game_engine.GameEngine._coerce_dc_int",
+        "core.game_engine.GameEngine._evaluate_dc",
+        "core.game_engine.GameEngine._detect_skill_check",
+        "core.game_engine.GameEngine._execute_single_command",
+        "core.api_integration.APIManager._infer_skill_check",
+        "core.api_integration.APIManager._generate_fallback_response"
+      ]
+    },
+    "social_mood_margin_multiplier": {
+      "value": 0.5,
+      "default": 0.5,
+      "note": "Multiplier applied to a social roll margin before updating the NPC identity.mood number. The per-roll mood delta is still capped to +/-10, and total mood is capped to +/-30.",
+      "used_by": [
+        "core.social_calc.resolve_social_interaction"
+      ]
+    }
+  },
+  "currency": {
+    "copper_per_silver": {
+      "value": 100,
+      "default": 100,
+      "note": "Number of copper coins equal to one silver coin for wallet conversion and display.",
+      "used_by": [
+        "core.inventory_tools.currency_to_copper",
+        "core.inventory_tools.split_currency",
+        "core.inventory_tools.format_currency"
+      ]
+    },
+    "copper_per_gold": {
+      "value": 10000,
+      "default": 10000,
+      "note": "Number of copper coins equal to one gold coin. Legacy player.gold and quest reward gold are converted using this value.",
+      "used_by": [
+        "core.inventory_tools.currency_to_copper",
+        "core.inventory_tools.normalize_player_currency",
+        "core.quest_tools.complete_quest"
+      ]
+    },
+    "copper_per_platinum": {
+      "value": 1000000,
+      "default": 1000000,
+      "note": "Number of copper coins equal to one platinum coin for wallet conversion and display.",
+      "used_by": [
+        "core.inventory_tools.currency_to_copper",
+        "core.inventory_tools.split_currency",
+        "core.inventory_tools.format_currency"
+      ]
+    }
+  },
   "api": {
     "call_delay_seconds": {
       "value": 1.2,
@@ -224,6 +291,22 @@
       "used_by": [
         "core.game_engine.GameEngine._summarize_turn"
       ]
+    },
+    "ooc_question_temperature": {
+      "value": 0.2,
+      "default": 0.2,
+      "note": "Temperature for out-of-character DM/referee question answers.",
+      "used_by": [
+        "core.game_engine.GameEngine._process_ooc_question"
+      ]
+    },
+    "ooc_question_max_tokens": {
+      "value": 500,
+      "default": 500,
+      "note": "Maximum response tokens for out-of-character DM/referee question answers.",
+      "used_by": [
+        "core.game_engine.GameEngine._process_ooc_question"
+      ]
     }
   },
   "dm_narration": {
@@ -262,6 +345,27 @@
         "core.game_engine.GameEngine._dm_prose_style_rules",
         "core.game_engine.GameEngine._call_mistral_api",
         "core.game_engine.GameEngine._build_dm_context"
+      ]
+    }
+  },
+  "time": {
+    "default_turn_minutes": {
+      "value": 1,
+      "default": 1,
+      "note": "Minutes automatically advanced after a completed player turn when the DM did not emit a time_update command and no explicit player-declared duration was inferred.",
+      "used_by": [
+        "core.game_engine.GameEngine.process_player_action",
+        "core.game_engine.GameEngine._apply_missing_time_update_fallback",
+        "core.game_engine.GameEngine._advance_world_time"
+      ]
+    },
+    "max_dm_advance_minutes": {
+      "value": 1440,
+      "default": 1440,
+      "note": "Maximum minutes the DM may advance with one time_update command.",
+      "used_by": [
+        "core.game_engine.GameEngine._apply_time_update",
+        "core.game_engine.GameEngine._infer_player_declared_time_advance"
       ]
     }
   },

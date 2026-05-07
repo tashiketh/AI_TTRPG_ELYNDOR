@@ -1,6 +1,7 @@
 # inventory_tools.py
 import json
 import os
+import re
 import random
 import shutil
 import glob
@@ -8,6 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from path_config import path_config
+from game_config import game_config
 
 # Constants - Adjusted for very slow degradation
 ITEM_CONDITION_THRESHOLDS = {
@@ -42,6 +44,364 @@ DURABILITY_FACTORS = {
         "normal_use": 0.0001       # 0.01% damage per use (very slow degradation)
     }
 }
+
+COPPER_PER_SILVER = game_config.int("currency.copper_per_silver", 100, min_value=1)
+COPPER_PER_GOLD = game_config.int("currency.copper_per_gold", COPPER_PER_SILVER * 100, min_value=1)
+COPPER_PER_PLATINUM = game_config.int("currency.copper_per_platinum", COPPER_PER_GOLD * 100, min_value=1)
+
+CONDITION_STAT_MODS = {
+    "pristine": {"damage_adjust": 1.0, "speed_adjust": 1.0, "price_adjust": 1.0},
+    "good": {"damage_adjust": 1.0, "speed_adjust": 1.0, "price_adjust": 0.9},
+    "worn": {"damage_adjust": 0.9, "speed_adjust": 1.05, "price_adjust": 0.6},
+    "damaged": {"damage_adjust": 0.7, "speed_adjust": 1.15, "price_adjust": 0.35},
+    "broken": {"damage_adjust": 0.35, "speed_adjust": 1.4, "price_adjust": 0.1},
+    "destroyed": {"damage_adjust": 0.0, "speed_adjust": 2.0, "price_adjust": 0.0},
+}
+
+_CRAFT_CACHE: Optional[Dict[str, Any]] = None
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def currency_to_copper(copper: Any = 0, silver: Any = 0, gold: Any = 0, platinum: Any = 0) -> int:
+    """Convert denomination amounts into canonical copper."""
+    return (
+        _coerce_int(copper, 0)
+        + (_coerce_int(silver, 0) * COPPER_PER_SILVER)
+        + (_coerce_int(gold, 0) * COPPER_PER_GOLD)
+        + (_coerce_int(platinum, 0) * COPPER_PER_PLATINUM)
+    )
+
+
+def split_currency(copper_total: Any) -> Dict[str, int]:
+    """Return display denominations for a copper balance."""
+    remaining = max(0, _coerce_int(copper_total, 0))
+    platinum, remaining = divmod(remaining, COPPER_PER_PLATINUM)
+    gold, remaining = divmod(remaining, COPPER_PER_GOLD)
+    silver, copper = divmod(remaining, COPPER_PER_SILVER)
+    return {"platinum": platinum, "gold": gold, "silver": silver, "copper": copper}
+
+
+def format_currency(copper_total: Any) -> str:
+    """Format canonical copper as compact denominations."""
+    parts = [
+        (amount, label)
+        for label, amount in split_currency(copper_total).items()
+        if amount
+    ]
+    if not parts:
+        return "0 copper"
+    return ", ".join(f"{amount} {label}" for amount, label in parts)
+
+
+def currency_snapshot(player: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a UI/prompt-friendly currency snapshot."""
+    currency = player.get("currency", {}) if isinstance(player, dict) else {}
+    copper = currency.get("copper", 0) if isinstance(currency, dict) else currency
+    copper = max(0, _coerce_int(copper, 0))
+    return {
+        "copper": copper,
+        "display": format_currency(copper),
+        "denominations": split_currency(copper),
+    }
+
+
+def _currency_item_value_in_copper(item: Dict[str, Any], quantity: int = 1) -> int:
+    """Return wallet value for ordinary loose coin items; special coins remain inventory."""
+    if not isinstance(item, dict):
+        return 0
+    tags = {str(tag).strip().lower() for tag in item.get("tags", []) if str(tag).strip()}
+    special_tags = {"foreign", "counterfeit", "cursed", "marked", "sealed", "collectible", "ancient"}
+    if tags & special_tags:
+        return 0
+    text = " ".join(str(item.get(field, "")) for field in ("name", "archetype", "type", "description")).lower()
+    ordinary_money = "currency" in tags or "coin" in text or "coins" in text or "money" in text
+    if not ordinary_money:
+        return 0
+    denomination = ""
+    for candidate in ("platinum", "gold", "silver", "copper"):
+        if candidate in tags or re.search(rf"\b{candidate}\b", text):
+            denomination = candidate
+            break
+    if not denomination:
+        return 0
+    value = {
+        "copper": 1,
+        "silver": COPPER_PER_SILVER,
+        "gold": COPPER_PER_GOLD,
+        "platinum": COPPER_PER_PLATINUM,
+    }[denomination]
+    qty = _coerce_int(item.get("qty", item.get("quantity", quantity)), quantity)
+    return max(0, qty) * value
+
+
+def normalize_player_currency(player: Dict[str, Any]) -> Dict[str, Any]:
+    """Migrate legacy gold and ordinary coin inventory into player.currency.copper."""
+    if not isinstance(player, dict):
+        return {"copper": 0, "display": "0 copper", "denominations": split_currency(0)}
+    currency = player.get("currency", {})
+    if isinstance(currency, dict):
+        copper = currency_to_copper(
+            currency.get("copper", 0),
+            currency.get("silver", 0),
+            currency.get("gold", 0),
+            currency.get("platinum", 0),
+        )
+    else:
+        copper = _coerce_int(currency, 0)
+
+    if "gold" in player:
+        copper += currency_to_copper(gold=player.get("gold", 0))
+        player.pop("gold", None)
+
+    inventory = player.get("inventory")
+    if isinstance(inventory, dict):
+        for item_id, item in list(inventory.items()):
+            value = _currency_item_value_in_copper(item, 1)
+            if value > 0:
+                copper += value
+                del inventory[item_id]
+
+    player["currency"] = {"copper": max(0, copper)}
+    return currency_snapshot(player)
+
+
+def add_currency_to_player(player: Dict[str, Any], copper: Any = 0, silver: Any = 0,
+                           gold: Any = 0, platinum: Any = 0) -> Dict[str, Any]:
+    """Add spendable currency to a player wallet."""
+    snapshot = normalize_player_currency(player)
+    delta = currency_to_copper(copper, silver, gold, platinum)
+    player["currency"]["copper"] = max(0, snapshot["copper"] + delta)
+    return currency_snapshot(player)
+
+
+def add_currency_to_wallet(copper: Any = 0, silver: Any = 0, gold: Any = 0,
+                           platinum: Any = 0, entity_id: str = "player") -> Dict[str, Any]:
+    """Add currency to the save file wallet."""
+    if entity_id != "player":
+        return {"success": False, "message": "Only player currency is supported right now"}
+    try:
+        with open(path_config.game_state_path, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception as e:
+        return {"success": False, "message": f"Cannot load game state: {str(e)}"}
+    player = state.setdefault("player", {})
+    delta = currency_to_copper(copper, silver, gold, platinum)
+    snapshot = add_currency_to_player(player, copper=delta)
+    _backup_and_save(state)
+    return {
+        "success": True,
+        "message": f"Added {format_currency(delta)}",
+        "currency": snapshot,
+        "copper_added": delta,
+    }
+
+
+def _canonical_text(value: Any) -> str:
+    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
+
+
+def _dedupe_tags(tags: List[Any]) -> List[str]:
+    clean_tags = []
+    seen = set()
+    for tag in tags:
+        clean = str(tag or "").strip().lower()
+        if clean and clean not in seen:
+            clean_tags.append(clean)
+            seen.add(clean)
+    return clean_tags
+
+
+def _load_craft_reference() -> Dict[str, Any]:
+    """Load item templates plus material and quality modifiers from craft.json."""
+    global _CRAFT_CACHE
+    if _CRAFT_CACHE is not None:
+        return _CRAFT_CACHE
+    try:
+        with open(path_config.crafting_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    craft = data.get("craft", {}) if isinstance(data, dict) else {}
+    _CRAFT_CACHE = {
+        "items": data.get("items", {}) if isinstance(data, dict) else {},
+        "materials": craft.get("materials", {}) if isinstance(craft, dict) else {},
+        "quality": craft.get("quality", {}) if isinstance(craft, dict) else {},
+    }
+    return _CRAFT_CACHE
+
+
+def _find_item_template(item_data: Dict[str, Any], templates: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    """Find the closest craft.json template for a loose item description."""
+    if not templates:
+        return "", {}
+    tags = item_data.get("tags", []) if isinstance(item_data.get("tags"), list) else []
+    candidates = [
+        item_data.get("archetype"),
+        item_data.get("name"),
+        item_data.get("type"),
+        *tags,
+    ]
+    canonical_templates = {_canonical_text(key): key for key in templates}
+    for candidate in candidates:
+        key = canonical_templates.get(_canonical_text(candidate))
+        if key:
+            return key, templates.get(key, {})
+
+    search_text = " ".join(str(value or "") for value in [
+        item_data.get("archetype"),
+        item_data.get("name"),
+        item_data.get("type"),
+        item_data.get("description"),
+        " ".join(str(tag) for tag in tags),
+    ])
+    words = {word.rstrip("s") for word in re.findall(r"[a-z0-9]+", search_text.lower())}
+    for key in sorted(templates, key=len, reverse=True):
+        key_words = {word.rstrip("s") for word in re.findall(r"[a-z0-9]+", str(key).lower())}
+        if key_words and key_words.issubset(words):
+            return key, templates.get(key, {})
+    return "", {}
+
+
+def _infer_materials(item: Dict[str, Any], material_mods: Dict[str, Any],
+                     weapon_like: bool = False) -> List[str]:
+    tags = item.get("tags", []) if isinstance(item.get("tags"), list) else []
+    text = " ".join(str(value or "") for value in [
+        item.get("archetype"),
+        item.get("name"),
+        item.get("type"),
+        item.get("description"),
+        " ".join(str(tag) for tag in tags),
+    ]).lower()
+    materials = []
+    for material in material_mods:
+        material_text = str(material).lower()
+        if material_text in tags or re.search(rf"\b{re.escape(material_text)}\b", text):
+            materials.append(material_text)
+    if not materials and weapon_like and "iron" in material_mods:
+        materials.append("iron")
+    return materials
+
+
+def _infer_quality(item: Dict[str, Any], quality_mods: Dict[str, Any]) -> str:
+    tags = item.get("tags", []) if isinstance(item.get("tags"), list) else []
+    quality = str(item.get("quality") or "").strip().lower()
+    if quality in quality_mods:
+        return quality
+    for tag in tags:
+        tag_text = str(tag).strip().lower()
+        if tag_text in quality_mods:
+            return tag_text
+    return "standard"
+
+
+def _round_stat(value: float) -> float:
+    rounded = round(float(value), 2)
+    return int(rounded) if rounded.is_integer() else rounded
+
+
+def normalize_inventory_item(item_data: Dict[str, Any], quantity: int = 1,
+                             condition: str = "pristine") -> Dict[str, Any]:
+    """Return a display-ready item with template stats and normalized tags."""
+    item = dict(item_data or {})
+    reference = _load_craft_reference()
+    templates = reference["items"]
+    material_mods = reference["materials"]
+    quality_mods = reference["quality"]
+
+    template_key, template = _find_item_template(item, templates)
+    base_tags = template.get("tags", []) if isinstance(template.get("tags"), list) else []
+    given_tags = item.get("tags", []) if isinstance(item.get("tags"), list) else []
+    merged = dict(template)
+    merged.update(item)
+
+    if not merged.get("archetype"):
+        merged["archetype"] = item.get("name") or item.get("type") or template.get("archetype") or template_key or "item"
+    if not merged.get("name"):
+        merged["name"] = str(merged.get("archetype") or template.get("archetype") or template_key or "Item").strip()
+
+    max_hp = merged.get("max_hp", 100)
+    hp = merged.get("hp", max_hp)
+    merged["max_hp"] = max_hp
+    merged["hp"] = hp
+    inferred_condition = get_item_condition(merged["hp"], merged["max_hp"])
+    merged["condition"] = inferred_condition or str(condition or "pristine").lower()
+
+    weapon_like = "weapon" in _dedupe_tags(base_tags + given_tags) or any(
+        field in template for field in ("damage", "speed", "range")
+    )
+    materials = _infer_materials({**merged, "tags": base_tags + given_tags}, material_mods, weapon_like)
+    quality = _infer_quality({**merged, "tags": base_tags + given_tags}, quality_mods)
+
+    tags = _dedupe_tags(base_tags + given_tags + ([template_key] if template_key else []) + materials + [quality, merged["condition"]])
+    merged["tags"] = tags
+    merged["quality"] = quality
+
+    material_key = materials[0] if materials else ""
+    mat_mod = material_mods.get(material_key, {})
+    qual_mod = quality_mods.get(quality, {})
+    cond_mod = CONDITION_STAT_MODS.get(merged["condition"], CONDITION_STAT_MODS["pristine"])
+
+    if template:
+        if "damage" in template and "damage" not in item:
+            merged["damage"] = _round_stat(
+                template.get("damage", 0)
+                * mat_mod.get("damage_adjust", 1.0)
+                * qual_mod.get("damage_adjust", 1.0)
+                * cond_mod.get("damage_adjust", 1.0)
+            )
+        if "speed" in template and "speed" not in item:
+            merged["speed"] = _round_stat(
+                template.get("speed", 1.0)
+                * mat_mod.get("speed_adjust", 1.0)
+                * qual_mod.get("speed_adjust", 1.0)
+                * cond_mod.get("speed_adjust", 1.0)
+            )
+        if "price" in template and "price" not in item:
+            merged["price"] = int(round(
+                template.get("price", 0)
+                * mat_mod.get("price_adjust", 1.0)
+                * qual_mod.get("price_adjust", 1.0)
+                * cond_mod.get("price_adjust", 1.0)
+            ))
+        if "weight" in template and "weight" not in item:
+            merged["weight"] = _round_stat(template.get("weight", 0) * mat_mod.get("weight_adjust", 1.0))
+        for field in ("range", "AC", "base_armor"):
+            if field in template and field not in item:
+                merged[field] = template[field]
+
+    merged.setdefault("durability", 1.0)
+    merged.setdefault("location", None)
+    merged.setdefault("qty", quantity)
+    merged.setdefault("quantity", merged.get("qty", quantity))
+    merged.setdefault("uses_since_repair", 0)
+    if merged.get("description") is None:
+        merged["description"] = ""
+    return merged
+
+
+def normalize_inventory_collection(inventory: Any) -> Dict[str, Dict[str, Any]]:
+    """Normalize an inventory dict for UI/API use."""
+    if not isinstance(inventory, dict):
+        return {}
+    normalized = {}
+    for item_id, item in inventory.items():
+        if isinstance(item, dict):
+            if _currency_item_value_in_copper(item, 1) > 0:
+                continue
+            normalized_item = normalize_inventory_item(
+                item,
+                quantity=int(item.get("qty", item.get("quantity", 1)) or 1),
+                condition=str(item.get("condition", "pristine")),
+            )
+            normalized_item.setdefault("id", item_id)
+            normalized[item_id] = normalized_item
+    return normalized
 
 def _backup_and_save(state: Dict):
     """Create backup then overwrite game state file."""
@@ -98,13 +458,28 @@ def add_item_to_inventory(
 
     # Determine which inventory to use
     if entity_id == "player":
-        inventory = state["player"].setdefault("inventory", {})
+        player = state.setdefault("player", {})
+        normalize_player_currency(player)
+        currency_value = _currency_item_value_in_copper(item_data, quantity)
+        if currency_value > 0:
+            snapshot = add_currency_to_player(player, copper=currency_value)
+            _backup_and_save(state)
+            return {
+                "success": True,
+                "message": f"Added {format_currency(currency_value)} to currency",
+                "currency": snapshot,
+                "copper_added": currency_value,
+            }
+        inventory = player.setdefault("inventory", {})
     else:
         npc_data = state["npcs"].setdefault(entity_id, {})
         inventory = npc_data.setdefault("inventory", {})
 
+    item_data = normalize_inventory_item(item_data, quantity=quantity, condition=condition)
+
     # Generate unique item ID
-    base_name = item_data.get("archetype", "item").lower().replace(" ", "_")
+    base_name = item_data.get("archetype") or item_data.get("name") or "item"
+    base_name = re.sub(r"[^a-z0-9]+", "_", str(base_name).lower()).strip("_") or "item"
     item_id = f"{base_name}_{random.randint(10000, 99999)}"
 
     # Set default values with high durability

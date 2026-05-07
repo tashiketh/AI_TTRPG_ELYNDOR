@@ -36,7 +36,7 @@
     "enchanting": 0.0,
     "medicine": 0.0,
     "animal handling": 0.0,
-    "slight of hand": 0.0,
+    "sleight of hand": 0.0,
     "research": 0.0
   },
   "derived": {
@@ -48,5 +48,7 @@
   },
   "inventory": {},
   "equipment": {},
-  "gold": 0
+  "currency": {
+    "copper": 0
+  }
 }

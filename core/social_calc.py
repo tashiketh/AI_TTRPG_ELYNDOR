@@ -9,7 +9,21 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
 from path_config import path_config
-from helper_functions import init_npc_state, load_racial_bias, calc_situational_mods, update_npc_state, weighted_roll
+from game_config import game_config
+from helper_functions import (
+    init_npc_state,
+    load_racial_bias,
+    calc_situational_mods,
+    update_npc_state,
+    weighted_roll,
+    get_relationship_level,
+    get_relationship_data,
+    get_behavior_band,
+    get_character_field,
+    get_mood_band,
+    get_mood_label,
+    get_mood_score,
+)
 
 # Constants from rules
 DENSITY_MULTIPLIERS = {
@@ -20,43 +34,16 @@ DENSITY_MULTIPLIERS = {
     "Capital": 2.5,
     "Trade Hub": 0.75,
 }
+SOCIAL_MOOD_MARGIN_MULTIPLIER = game_config.float("mechanics.social_mood_margin_multiplier", 0.5, min_value=0.0)
 
-# Relationship levels with trust ranges
-RELATIONSHIP_LEVELS = {
-    "mortal enemy": {"trust": (-100, -60), "description": "Will actively seek to harm or destroy"},
-    "enemy": {"trust": (-59, -40), "description": "Hostile, will oppose at every opportunity"},
-    "adversary": {"trust": (-39, -20), "description": "Distrustful, competitive, may sabotage"},
-    "rival": {"trust": (-19, -10), "description": "Competitive but not openly hostile"},
-    "neutral": {"trust": (-9, 9), "description": "Indifferent, no strong feelings"},
-    "acquaintance": {"trust": (10, 20), "description": "Friendly but superficial"},
-    "friend": {"trust": (21, 40), "description": "Genuine friendship, will help when convenient"},
-    "close friend": {"trust": (41, 60), "description": "Strong bond, will make sacrifices"},
-    "lover": {"trust": (61, 80), "description": "Romantic attachment, deep emotional connection"},
-    "soulmate": {"trust": (81, 100), "description": "Unbreakable bond, will risk everything"}
-}
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(value, high))
 
-# Behavior bands based on affinity (trust + bias + situational)
-BEHAVIOR_BANDS = [
-    (-float('inf'), -20, "hostile"),
-    (-19, -5, "cold / obstructive"),
-    (-4, 4, "neutral / transactional"),
-    (5, 19, "helpful / cooperative"),
-    (20, float('inf'), "protective / risk-taking")
-]
-
-def get_relationship_level(trust: float) -> str:
-    """Get relationship level based on trust score."""
-    for level, data in RELATIONSHIP_LEVELS.items():
-        if data["trust"][0] <= trust <= data["trust"][1]:
-            return level
-    return "neutral"
-
-def get_behavior_band(affinity: float) -> str:
-    """Get behavior band based on affinity score."""
-    for low, high, label in BEHAVIOR_BANDS:
-        if low <= affinity <= high:
-            return label
-    return "unknown"
+def _coerce_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 def calculate_relationship_change(
     current_trust: float,
@@ -76,8 +63,7 @@ def calculate_relationship_change(
     Returns:
         Trust change amount
     """
-    # Get current relationship level
-    current_relationship = get_relationship_level(current_trust)
+    current_category = get_relationship_data(current_trust).get("category", "neutral")
 
     # Base trust change based on interaction type
     if interaction_type == "appeal":
@@ -110,15 +96,13 @@ def calculate_relationship_change(
     elif social_trait in ["manipulative", "selfish"]:
         personality_mod *= 0.7
 
-    # Relationship level modifiers - harder to change well-established relationships
-    if current_relationship in ["mortal enemy", "enemy"]:
+    # Trust category modifiers - harder to change well-established relationships.
+    if current_category == "hostile":
         personality_mod *= 0.5  # Very hard to improve
-    elif current_relationship in ["soulmate", "lover"]:
+    elif current_category == "close_bond":
         personality_mod *= 0.6  # Hard to damage strong bonds
-    elif current_relationship in ["close friend", "friend"]:
+    elif current_category == "friendly":
         personality_mod *= 0.8
-    elif current_relationship in ["adversary", "rival"]:
-        personality_mod *= 1.2  # Easier to change competitive relationships
 
     # Apply modifiers
     final_change = base_change * personality_mod
@@ -155,6 +139,7 @@ def resolve_social_interaction(
         }
 
     old_trust = state["trust"]
+    old_mood_score = _coerce_float(state.get("mood", state.get("mood_score", 0)), 0)
     deviation_range = state["deviation_range"]
     personality = state.get("personality", {})
     npc_race = state.get("npc_race", "Human")
@@ -168,18 +153,8 @@ def resolve_social_interaction(
     # Situational modifiers
     situational_mods = calc_situational_mods(npc_id)
 
-    # Adjust DC based on current relationship
-    current_relationship = get_relationship_level(old_trust)
+    # Trust is already applied by GameEngine before this mechanical resolver.
     relationship_dc_mod = 0
-
-    if current_relationship in ["mortal enemy", "enemy"]:
-        relationship_dc_mod = 20  # Much harder to interact positively
-    elif current_relationship in ["adversary", "rival"]:
-        relationship_dc_mod = 10  # Harder to interact
-    elif current_relationship in ["close friend", "lover", "soulmate"]:
-        relationship_dc_mod = -10  # Easier to interact
-    elif current_relationship in ["friend", "acquaintance"]:
-        relationship_dc_mod = -5  # Slightly easier
 
     adjusted_dc = max(10, min(100, difficulty_class + relationship_dc_mod))
 
@@ -225,26 +200,37 @@ def resolve_social_interaction(
     # Affinity calculations
     affinity_before = adjusted_bias + old_trust + situational_mods
     affinity_after = adjusted_bias + new_trust + situational_mods
-    behavior = get_behavior_band(affinity_after)
+    mood_delta = _clamp(margin * SOCIAL_MOOD_MARGIN_MULTIPLIER, -10, 10)
+    new_mood_score = _clamp(old_mood_score + mood_delta, -30, 30)
+    old_mood = get_mood_label(old_mood_score)
+    new_mood = get_mood_label(new_mood_score)
+    mood_band = get_mood_band(new_mood_score)
+    behavior = new_mood
 
     # Determine if this was a significant relationship change
     relationship_changed = old_relationship != new_relationship
 
     # Update NPC state
+    interaction_timestamp = datetime.now().isoformat()
     update_fields = {
         "trust": new_trust,
-        "relationship": new_relationship,
-        "last_interaction": datetime.now().isoformat()
+        "mood": new_mood_score,
+        "last_interaction": interaction_timestamp,
     }
 
     # Add to interaction history
     interaction_record = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": interaction_timestamp,
         "type": interaction_type,
         "old_trust": old_trust,
         "new_trust": new_trust,
         "old_relationship": old_relationship,
         "new_relationship": new_relationship,
+        "old_mood_score": old_mood_score,
+        "new_mood_score": new_mood_score,
+        "old_mood": old_mood,
+        "new_mood": new_mood,
+        "mood_delta": mood_delta,
         "margin": margin,
         "location": location_density,
         "gift_value": gift_value if interaction_type == "gift" else 0
@@ -252,8 +238,13 @@ def resolve_social_interaction(
 
     npc_data = _load_npc_data()
     if npc_id in npc_data["npcs"]:
-        npc_data["npcs"][npc_id]["interaction_history"] = npc_data["npcs"][npc_id].get("interaction_history", []) + [interaction_record]
-        npc_data["npcs"][npc_id].update(update_fields)
+        npc_entry = npc_data["npcs"][npc_id]
+        if isinstance(npc_entry, dict):
+            identity = npc_entry.setdefault("identity", {})
+            if isinstance(identity, dict):
+                identity.update(update_fields)
+                history = identity.get("interaction_history", [])
+                identity["interaction_history"] = (history if isinstance(history, list) else []) + [interaction_record]
         _save_npc_data(npc_data)
 
     # Return comprehensive results
@@ -267,7 +258,16 @@ def resolve_social_interaction(
         "old_relationship": old_relationship,
         "new_relationship": new_relationship,
         "relationship_changed": relationship_changed,
-        "relationship_description": RELATIONSHIP_LEVELS[new_relationship]["description"],
+        "relationship_description": get_relationship_data(new_trust).get("description", ""),
+        "trust_category": get_relationship_data(new_trust).get("category", "neutral"),
+        "old_mood_score": old_mood_score,
+        "new_mood_score": new_mood_score,
+        "mood_delta": mood_delta,
+        "old_mood": old_mood,
+        "new_mood": new_mood,
+        "mood": new_mood_score,
+        "mood_label": new_mood,
+        "mood_description": mood_band.get("description", ""),
         "affinity_before": affinity_before,
         "affinity_after": affinity_after,
         "behavior": behavior,
@@ -311,11 +311,12 @@ def get_relationship_history(npc_id: str) -> Dict:
         }
 
     npc = npc_data["npcs"][npc_id]
-    history = npc.get("interaction_history", [])
+    history = get_character_field(npc, "interaction_history", [])
 
     # Summarize relationship progression
     relationship_changes = []
-    current_relationship = npc.get("relationship", "neutral")
+    current_trust = get_character_field(npc, "trust", 0)
+    current_relationship = get_relationship_level(current_trust)
 
     for i, interaction in enumerate(history):
         if interaction.get("old_relationship") != interaction.get("new_relationship"):
@@ -332,7 +333,7 @@ def get_relationship_history(npc_id: str) -> Dict:
         "success": True,
         "npc_id": npc_id,
         "current_relationship": current_relationship,
-        "current_trust": npc.get("trust", 0),
+        "current_trust": current_trust,
         "relationship_history": relationship_changes,
         "full_interaction_history": history,
         "relationship_progression": len(relationship_changes)
@@ -356,24 +357,25 @@ def get_npc_relationship_status(npc_id: str) -> Dict:
         }
 
     npc = npc_data["npcs"][npc_id]
-    trust = npc.get("trust", 0)
-    relationship = npc.get("relationship", "neutral")
+    trust = get_character_field(npc, "trust", 0)
+    mood_score = get_mood_score(npc, 0)
+    relationship = get_relationship_level(trust)
     personality = npc.get("personality", {})
 
     # Get relationship details
-    relationship_data = RELATIONSHIP_LEVELS.get(relationship, RELATIONSHIP_LEVELS["neutral"])
+    relationship_data = get_relationship_data(trust)
 
     # Calculate affinity components
     bias_dict = load_racial_bias()
     player_race = _get_player_race()
-    racial_bias = bias_dict.get(npc.get("race", "human").lower(), -20)
+    racial_bias = bias_dict.get(str(get_character_field(npc, "race", "human")).lower(), -20)
     situational_mods = calc_situational_mods(npc_id)
 
     affinity = racial_bias + trust + situational_mods
     behavior = get_behavior_band(affinity)
 
     # Determine relationship trends
-    history = npc.get("interaction_history", [])
+    history = get_character_field(npc, "interaction_history", [])
     if len(history) >= 5:
         recent_trust_changes = [h["new_trust"] - h["old_trust"] for h in history[-5:]]
         avg_change = sum(recent_trust_changes) / len(recent_trust_changes)
@@ -394,10 +396,12 @@ def get_npc_relationship_status(npc_id: str) -> Dict:
     return {
         "success": True,
         "npc_id": npc_id,
-        "npc_name": npc.get("name", "Unknown"),
+        "npc_name": get_character_field(npc, "name", "Unknown"),
         "current_relationship": relationship,
         "relationship_description": relationship_data["description"],
         "current_trust": trust,
+        "current_mood": mood_score,
+        "current_mood_label": get_mood_label(mood_score),
         "trust_range": relationship_data["trust"],
         "racial_bias": racial_bias,
         "situational_mods": situational_mods,
@@ -405,7 +409,7 @@ def get_npc_relationship_status(npc_id: str) -> Dict:
         "behavior": behavior,
         "relationship_trend": trend,
         "interactions_count": len(history),
-        "last_interaction": npc.get("last_interaction", "Never"),
+        "last_interaction": get_character_field(npc, "last_interaction", "Never"),
         "personality_summary": {
             "core_trait": personality.get("core_trait", "unknown"),
             "social_trait": personality.get("social_trait", "unknown"),
@@ -433,22 +437,35 @@ def get_all_relationships() -> Dict:
     """
     npc_data = _load_npc_data()
     relationships = []
+    summary_counts = {"close_bonds": 0, "friends": 0, "neutral": 0, "hostile": 0}
 
     for npc_id, npc in npc_data["npcs"].items():
         if npc.get("status") == "active":
-            trust = npc.get("trust", 0)
-            relationship = npc.get("relationship", "neutral")
-            relationship_data = RELATIONSHIP_LEVELS.get(relationship, RELATIONSHIP_LEVELS["neutral"])
+            trust = get_character_field(npc, "trust", 0)
+            mood_score = get_mood_score(npc, 0)
+            relationship = get_relationship_level(trust)
+            relationship_data = get_relationship_data(trust)
+            category = relationship_data.get("category", "neutral")
+            if category == "close_bond":
+                summary_counts["close_bonds"] += 1
+            elif category == "friendly":
+                summary_counts["friends"] += 1
+            elif category == "hostile":
+                summary_counts["hostile"] += 1
+            else:
+                summary_counts["neutral"] += 1
 
             relationships.append({
                 "npc_id": npc_id,
-                "name": npc.get("name", "Unknown"),
-                "role": npc.get("role", "Unknown"),
-                "location": npc.get("location", "Unknown"),
+                "name": get_character_field(npc, "name", "Unknown"),
+                "role": get_character_field(npc, "role", "Unknown"),
+                "location": get_character_field(npc, "location", "Unknown"),
                 "relationship": relationship,
                 "trust": trust,
+                "mood": mood_score,
+                "mood_label": get_mood_label(mood_score),
                 "relationship_description": relationship_data["description"],
-                "last_interaction": npc.get("last_interaction", "Never")
+                "last_interaction": get_character_field(npc, "last_interaction", "Never")
             })
 
     # Sort by trust level (highest first)
@@ -458,12 +475,7 @@ def get_all_relationships() -> Dict:
         "success": True,
         "relationships": relationships,
         "count": len(relationships),
-        "summary": {
-            "close_bonds": sum(1 for r in relationships if r["relationship"] in ["close friend", "lover", "soulmate"]),
-            "friends": sum(1 for r in relationships if r["relationship"] in ["friend", "acquaintance"]),
-            "neutral": sum(1 for r in relationships if r["relationship"] == "neutral"),
-            "hostile": sum(1 for r in relationships if r["relationship"] in ["mortal enemy", "enemy", "adversary", "rival"])
-        }
+        "summary": summary_counts
     }
 
 # Example usage
