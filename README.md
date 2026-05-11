@@ -3,7 +3,7 @@
 **A local, AI-powered tabletop role-playing game** built with Python and Flask.  
 Experience dynamic storytelling powered by Mistral AI while playing through a full-featured TTRPG system.
 
-> **Note:** This project is currently in active development. The world is temporarily called **Elyndor** until a more fitting name is chosen.
+> **Note:** This project is currently in active development. The focus is on making it work and both token usage and delay between prompt and response is secondary. Those will be looked at once the tools work as intended.
 
 ---
 
