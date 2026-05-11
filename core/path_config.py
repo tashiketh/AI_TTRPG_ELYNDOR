@@ -98,6 +98,12 @@ class PathConfig:
 
     @property
     def story_bible_path(self):
+        for candidate in (
+            self.references_dir / "Story_bible.json",
+            self.references_dir / "story_bible.json",
+        ):
+            if candidate.exists():
+                return candidate
         return self.core_dir / "Story_bible.txt"
 
 # Initialize global path configuration

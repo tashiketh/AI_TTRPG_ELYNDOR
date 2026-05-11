@@ -23,10 +23,40 @@
       "Crea": 4,
       "weight": 12,
       "role": "melee",
-      "tags": ["wild_animal"]
+      "tags": [
+        "wild_animal"
+      ],
+      "aliases": [
+        "dog",
+        "feral dog",
+        "stray dog",
+        "mangy dog"
+      ],
+      "scene_cues": [
+        "barking",
+        "snarling",
+        "pack animal",
+        "settlement outskirts",
+        "roadside scavenger"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Bite",
+          "archetype": "natural attack",
+          "damage": 8,
+          "range": 1,
+          "speed": 1.4,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite"
+          ]
+        }
+      }
     },
     {
-      "name": "Wolf ",
+      "name": "Wolf",
       "archetype": "beast",
       "subtype": "canine",
       "faction": "goblin",
@@ -49,7 +79,33 @@
       "tags": [
         "wild_animal",
         "pet"
-      ]
+      ],
+      "aliases": [
+        "wolf",
+        "gray wolf",
+        "hunting wolf"
+      ],
+      "scene_cues": [
+        "howling",
+        "pack hunter",
+        "forest predator",
+        "mountain predator"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Bite",
+          "archetype": "natural attack",
+          "damage": 12,
+          "range": 1,
+          "speed": 1.5,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite"
+          ]
+        }
+      }
     },
     {
       "name": "Wolf Pack Alpha",
@@ -72,7 +128,36 @@
       "Crea": 5,
       "weight": 3,
       "role": "melee",
-      "tags": ["wild_animal"]
+      "tags": [
+        "wild_animal"
+      ],
+      "aliases": [
+        "alpha wolf",
+        "pack alpha",
+        "large wolf"
+      ],
+      "scene_cues": [
+        "commands a pack",
+        "dominant predator",
+        "forest predator",
+        "mountain predator"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Rending Bite",
+          "archetype": "natural attack",
+          "damage": 18,
+          "range": 1,
+          "speed": 1.6,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite",
+            "edged"
+          ]
+        }
+      }
     },
     {
       "name": "Giant Ant worker",
@@ -95,7 +180,35 @@
       "Crea": 1,
       "weight": 8,
       "role": "melee",
-      "tags": ["hive_mind"]
+      "tags": [
+        "hive_mind"
+      ],
+      "aliases": [
+        "giant ant",
+        "ant worker",
+        "worker ant"
+      ],
+      "scene_cues": [
+        "hive creature",
+        "foraging insect",
+        "near ant nest",
+        "tunnel"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Mandibles",
+          "archetype": "natural attack",
+          "damage": 10,
+          "range": 0.8,
+          "speed": 1.8,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite"
+          ]
+        }
+      }
     },
     {
       "name": "Giant Ant Soldier",
@@ -118,7 +231,34 @@
       "Crea": 1,
       "weight": 7,
       "role": "melee",
-      "tags": ["hive_mind"]
+      "tags": [
+        "hive_mind"
+      ],
+      "aliases": [
+        "ant soldier",
+        "soldier ant",
+        "giant guard ant"
+      ],
+      "scene_cues": [
+        "hive guard",
+        "near ant nest",
+        "tunnel defender"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Crushing Mandibles",
+          "archetype": "natural attack",
+          "damage": 16,
+          "range": 0.9,
+          "speed": 2,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite"
+          ]
+        }
+      }
     },
     {
       "name": "Giant Ant Queen",
@@ -126,7 +266,9 @@
       "subtype": "insect",
       "faction": "ant_nest",
       "aggression": "mindless",
-      "environment": ["caves"],
+      "environment": [
+        "caves"
+      ],
       "CV": 12,
       "tier": 3,
       "Str": 12,
@@ -137,7 +279,34 @@
       "Crea": 2,
       "weight": 1,
       "role": "leader",
-      "tags": ["hive_mind"]
+      "tags": [
+        "hive_mind"
+      ],
+      "aliases": [
+        "ant queen",
+        "giant queen ant",
+        "hive queen"
+      ],
+      "scene_cues": [
+        "hive center",
+        "egg chamber",
+        "nest ruler"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Massive Mandibles",
+          "archetype": "natural attack",
+          "damage": 18,
+          "range": 1,
+          "speed": 3,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite"
+          ]
+        }
+      }
     },
     {
       "name": "Giant Rat",
@@ -159,7 +328,37 @@
       "Crea": 1,
       "weight": 15,
       "role": "melee",
-      "tags": ["rodent"]
+      "tags": [
+        "rodent"
+      ],
+      "aliases": [
+        "rat",
+        "large rat",
+        "sewer rat",
+        "giant rodent"
+      ],
+      "scene_cues": [
+        "basement",
+        "cellar",
+        "sewer",
+        "slums",
+        "scratching in the walls"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Gnawing Bite",
+          "archetype": "natural attack",
+          "damage": 6,
+          "range": 0.5,
+          "speed": 1.2,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite"
+          ]
+        }
+      }
     },
     {
       "name": "Forest Troll",
@@ -181,7 +380,30 @@
       "Crea": 5,
       "weight": 1,
       "role": "melee",
-      "tags": ["giant"]
+      "tags": [
+        "giant"
+      ],
+      "aliases": [
+        "troll",
+        "forest troll",
+        "large brute"
+      ],
+      "scene_cues": [
+        "forest ambush",
+        "swamp brute",
+        "large regenerating attacker"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "club",
+          "tags": [
+            "weapon",
+            "melee",
+            "blunt",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Goblin Skirmisher",
@@ -203,7 +425,33 @@
       "Crea": 3,
       "weight": 12,
       "role": "melee",
-      "tags": ["goblin"]
+      "tags": [
+        "goblin"
+      ],
+      "aliases": [
+        "goblin",
+        "goblin raider",
+        "goblin fighter",
+        "small raider"
+      ],
+      "scene_cues": [
+        "forest ambush",
+        "cave raid",
+        "goblin tribe",
+        "cowardly attack"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "dagger",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron",
+            "poor"
+          ]
+        }
+      }
     },
     {
       "name": "Goblin Shaman",
@@ -228,7 +476,29 @@
       "tags": [
         "goblin",
         "magic"
-      ]
+      ],
+      "aliases": [
+        "goblin shaman",
+        "goblin caster",
+        "goblin witch"
+      ],
+      "scene_cues": [
+        "goblin magic",
+        "tribal chant",
+        "cave ritual",
+        "forest ritual"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "staff",
+          "tags": [
+            "weapon",
+            "melee",
+            "blunt",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Goblin War Chief",
@@ -253,7 +523,29 @@
       "tags": [
         "goblin",
         "leader"
-      ]
+      ],
+      "aliases": [
+        "goblin chief",
+        "goblin leader",
+        "goblin boss"
+      ],
+      "scene_cues": [
+        "goblin leader",
+        "tribal command",
+        "cave warband",
+        "forest warband"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "sword",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron"
+          ]
+        }
+      }
     },
     {
       "name": "Gorilla",
@@ -261,7 +553,9 @@
       "subtype": "ape",
       "faction": "none",
       "aggression": "brave",
-      "environment": ["forest"],
+      "environment": [
+        "forest"
+      ],
       "CV": 10,
       "tier": 2,
       "Str": 18,
@@ -272,7 +566,34 @@
       "Crea": 7,
       "weight": 5,
       "role": "melee",
-      "tags": ["wild_animal"]
+      "tags": [
+        "wild_animal"
+      ],
+      "aliases": [
+        "gorilla",
+        "great ape",
+        "ape"
+      ],
+      "scene_cues": [
+        "forest animal",
+        "territorial display",
+        "powerful unarmed brute"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Heavy Slam",
+          "archetype": "natural attack",
+          "damage": 22,
+          "range": 1,
+          "speed": 2.4,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "blunt"
+          ]
+        }
+      }
     },
     {
       "name": "Bandit",
@@ -283,7 +604,11 @@
       "environment": [
         "plains",
         "slums",
-        "forest"
+        "forest",
+        "settlement",
+        "village",
+        "town",
+        "city"
       ],
       "CV": 4,
       "tier": 1,
@@ -295,7 +620,36 @@
       "Crea": 5,
       "weight": 12,
       "role": "melee",
-      "tags": ["criminal"]
+      "tags": [
+        "criminal"
+      ],
+      "aliases": [
+        "bandit",
+        "brigand",
+        "highwayman",
+        "raider",
+        "thief",
+        "robber"
+      ],
+      "scene_cues": [
+        "road ambush",
+        "armed criminal",
+        "rural robbery",
+        "caravan attack",
+        "forest road"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "sword",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron",
+            "poor"
+          ]
+        }
+      }
     },
     {
       "name": "Street Thug",
@@ -305,7 +659,13 @@
       "aggression": "cowardly",
       "environment": [
         "slums",
-        "plains"
+        "plains",
+        "settlement",
+        "village",
+        "town",
+        "city",
+        "tavern",
+        "indoors"
       ],
       "CV": 3,
       "tier": 1,
@@ -317,7 +677,40 @@
       "Crea": 8,
       "weight": 10,
       "role": "melee",
-      "tags": ["criminal"]
+      "tags": [
+        "criminal"
+      ],
+      "aliases": [
+        "street thug",
+        "thug",
+        "mugger",
+        "armed thief",
+        "thief",
+        "intruder",
+        "hooded intruder",
+        "knife man",
+        "robber"
+      ],
+      "scene_cues": [
+        "armed intruder",
+        "tavern standoff",
+        "close quarters",
+        "slums violence",
+        "back alley threat",
+        "break-in"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "dagger",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron",
+            "worn"
+          ]
+        }
+      }
     },
     {
       "name": "Pickpocket",
@@ -327,7 +720,11 @@
       "aggression": "cowardly",
       "environment": [
         "slums",
-        "market"
+        "market",
+        "settlement",
+        "village",
+        "town",
+        "city"
       ],
       "CV": 1,
       "tier": 1,
@@ -339,7 +736,35 @@
       "Crea": 9,
       "weight": 8,
       "role": "melee",
-      "tags": ["criminal"]
+      "tags": [
+        "criminal"
+      ],
+      "aliases": [
+        "pickpocket",
+        "cutpurse",
+        "thief",
+        "purse snatcher",
+        "market thief"
+      ],
+      "scene_cues": [
+        "market theft",
+        "crowded street",
+        "unnoticed hand",
+        "flight not fight",
+        "petty crime"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "dagger",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron",
+            "poor"
+          ]
+        }
+      }
     },
     {
       "name": "Bandit Archer",
@@ -350,7 +775,11 @@
       "environment": [
         "plains",
         "slums",
-        "forest"
+        "forest",
+        "settlement",
+        "village",
+        "town",
+        "city"
       ],
       "CV": 4,
       "tier": 2,
@@ -362,7 +791,32 @@
       "Crea": 6,
       "weight": 8,
       "role": "ranged",
-      "tags": ["criminal"]
+      "tags": [
+        "criminal"
+      ],
+      "aliases": [
+        "bandit archer",
+        "archer",
+        "bowman",
+        "ranged bandit"
+      ],
+      "scene_cues": [
+        "road ambush",
+        "ranged criminal",
+        "cover fire",
+        "forest road"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "short bow",
+          "tags": [
+            "weapon",
+            "ranged",
+            "piercing",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Dire Wolf",
@@ -387,7 +841,34 @@
       "tags": [
         "wild_animal",
         "pet"
-      ]
+      ],
+      "aliases": [
+        "dire wolf",
+        "huge wolf",
+        "war wolf"
+      ],
+      "scene_cues": [
+        "war beast",
+        "mountain predator",
+        "plains predator",
+        "orc companion"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Dire Bite",
+          "archetype": "natural attack",
+          "damage": 24,
+          "range": 1,
+          "speed": 1.7,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "bite",
+            "edged"
+          ]
+        }
+      }
     },
     {
       "name": "Orc War Chief",
@@ -409,7 +890,32 @@
       "Crea": 7,
       "weight": 6,
       "role": "brute",
-      "tags": ["orc"]
+      "tags": [
+        "orc"
+      ],
+      "aliases": [
+        "orc chief",
+        "orc leader",
+        "orc war chief",
+        "orc boss"
+      ],
+      "scene_cues": [
+        "orc commander",
+        "warband leader",
+        "mountain raid",
+        "plains raid"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "battle axe",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron"
+          ]
+        }
+      }
     },
     {
       "name": "Orc War Shaman",
@@ -434,7 +940,29 @@
       "tags": [
         "orc",
         "magic"
-      ]
+      ],
+      "aliases": [
+        "orc shaman",
+        "orc caster",
+        "war shaman"
+      ],
+      "scene_cues": [
+        "orc magic",
+        "war chant",
+        "mountain ritual",
+        "plains ritual"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "staff",
+          "tags": [
+            "weapon",
+            "melee",
+            "blunt",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Orc Skirmisher",
@@ -458,7 +986,30 @@
       "role": "melee",
       "tags": [
         "orc"
-      ]
+      ],
+      "aliases": [
+        "orc",
+        "orc skirmisher",
+        "orc warrior",
+        "orc raider"
+      ],
+      "scene_cues": [
+        "orc raid",
+        "plains attack",
+        "mountain attack",
+        "frontline fighter"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "axe",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron"
+          ]
+        }
+      }
     },
     {
       "name": "Orc Archer",
@@ -480,7 +1031,30 @@
       "Crea": 11,
       "weight": 1,
       "role": "ranged",
-      "tags": ["orc"]
+      "tags": [
+        "orc"
+      ],
+      "aliases": [
+        "orc archer",
+        "orc bowman",
+        "orc marksman"
+      ],
+      "scene_cues": [
+        "ranged orc",
+        "plains volley",
+        "mountain ambush"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "short bow",
+          "tags": [
+            "weapon",
+            "ranged",
+            "piercing",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Troll Archer",
@@ -506,7 +1080,28 @@
         "wild_animal",
         "criminal",
         "giant"
-      ]
+      ],
+      "aliases": [
+        "troll archer",
+        "large archer",
+        "giant archer"
+      ],
+      "scene_cues": [
+        "forest ranged threat",
+        "swamp ranged threat",
+        "oversized bow"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "longbow",
+          "tags": [
+            "weapon",
+            "ranged",
+            "piercing",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Ghoul",
@@ -528,7 +1123,35 @@
       "Crea": 4,
       "weight": 6,
       "role": "melee",
-      "tags": ["undead"]
+      "tags": [
+        "undead"
+      ],
+      "aliases": [
+        "ghoul",
+        "corpse eater",
+        "undead ghoul"
+      ],
+      "scene_cues": [
+        "crypt undead",
+        "ruins undead",
+        "grave hunger",
+        "clawed corpse"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Claws",
+          "archetype": "natural attack",
+          "damage": 16,
+          "range": 1,
+          "speed": 1.7,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "edged"
+          ]
+        }
+      }
     },
     {
       "name": "Lich",
@@ -553,7 +1176,29 @@
       "tags": [
         "undead",
         "caster"
-      ]
+      ],
+      "aliases": [
+        "lich",
+        "undead mage",
+        "ancient caster"
+      ],
+      "scene_cues": [
+        "crypt master",
+        "ruins sorcerer",
+        "undead magic",
+        "arcane threat"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "staff",
+          "tags": [
+            "weapon",
+            "melee",
+            "blunt",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Necromancer",
@@ -575,7 +1220,31 @@
       "Crea": 1,
       "weight": 1,
       "role": "ranged",
-      "tags": ["caster"]
+      "tags": [
+        "caster"
+      ],
+      "aliases": [
+        "necromancer",
+        "death mage",
+        "cult caster"
+      ],
+      "scene_cues": [
+        "raises dead",
+        "crypt ritual",
+        "ruins ritual",
+        "cult magic"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "staff",
+          "tags": [
+            "weapon",
+            "melee",
+            "blunt",
+            "wood"
+          ]
+        }
+      }
     },
     {
       "name": "Skeleton Warrior",
@@ -597,7 +1266,31 @@
       "Crea": 1,
       "weight": 8,
       "role": "melee",
-      "tags": ["undead"]
+      "tags": [
+        "undead"
+      ],
+      "aliases": [
+        "skeleton",
+        "skeleton warrior",
+        "bone soldier"
+      ],
+      "scene_cues": [
+        "crypt guardian",
+        "ruins guardian",
+        "animated bones"
+      ],
+      "equipment": {
+        "main_hand": {
+          "archetype": "sword",
+          "tags": [
+            "weapon",
+            "melee",
+            "edged",
+            "iron",
+            "poor"
+          ]
+        }
+      }
     },
     {
       "name": "Wraith",
@@ -619,7 +1312,35 @@
       "Crea": 1,
       "weight": 7,
       "role": "melee",
-      "tags": ["undead"]
+      "tags": [
+        "undead"
+      ],
+      "aliases": [
+        "wraith",
+        "shade",
+        "spirit",
+        "undead spirit"
+      ],
+      "scene_cues": [
+        "crypt spirit",
+        "ruins haunting",
+        "incorporeal undead"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Chilling Touch",
+          "archetype": "natural attack",
+          "damage": 18,
+          "range": 1,
+          "speed": 1.8,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "magic"
+          ]
+        }
+      }
     },
     {
       "name": "Zombie",
@@ -641,7 +1362,35 @@
       "Crea": 1,
       "weight": 4,
       "role": "melee",
-      "tags": ["undead"]
+      "tags": [
+        "undead"
+      ],
+      "aliases": [
+        "zombie",
+        "walking corpse",
+        "undead corpse"
+      ],
+      "scene_cues": [
+        "crypt undead",
+        "ruins undead",
+        "slow corpse",
+        "mindless attacker"
+      ],
+      "equipment": {
+        "main_hand": {
+          "name": "Rotting Slam",
+          "archetype": "natural attack",
+          "damage": 12,
+          "range": 1,
+          "speed": 2.5,
+          "tags": [
+            "weapon",
+            "melee",
+            "natural",
+            "blunt"
+          ]
+        }
+      }
     }
   ]
 }

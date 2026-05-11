@@ -289,7 +289,7 @@
   },
   {
     "skill_name": "enchanting",
-    "skill_description": "Exercising or practicing skill in imbuing items with magical effects; runes and enchantments",
+    "skill_description": "Exercising or practicing skill in imbuing items with magical effects; runes, enchantments, and slave crests",
     "stats_used": [
       "crea",
       "ins"
@@ -297,10 +297,10 @@
     "dc_examples": {
       "15": "Trivial: Imbue a simple item with a faint glow or minor warmth effect.",
       "25": "Very Easy: Add a basic durability or sharpness rune to a tool or weapon.",
-      "35": "Easy: Enchant a weapon with a minor combat bonus (+1 to hit or damage).",
+      "35": "Easy: Enchant a weapon with a minor combat bonus (+1 to hit or damage), apply enchanted ink in Willing Submission Rite.",
       "50": "Neutral: Create a cloak or ring that provides moderate concealment or minor magical protection.",
       "60": "Difficult: Imbue a full suit of armor with strong elemental resistance (fire, cold, or lightning).",
-      "65": "Very Difficult: Craft a ring or amulet that allows limited teleportation or flight for short distances.",
+      "65": "Very Difficult: Craft a ring or amulet that allows limited teleportation or flight for short distances, perform blood pact in Willing Submission Rite.",
       "80": "Improbable: Enchant an item with powerful reality-warping effects (time stop, wish-like magic).",
       "100": "Impossible: Create a true artifact capable of granting wishes, raising the dead, or fundamentally altering fate and reality."
     }

@@ -6,6 +6,7 @@ import os
 import re
 import random
 import logging
+import difflib
 from typing import Dict, Any, Literal, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -80,6 +81,7 @@ NPC_GENDER_MODIFIERS = {
 NPC_FACT_MAX_COUNT = game_config.int("npc_memory.max_fact_count", 8, min_value=1)
 NPC_FACT_MAX_CHARS = game_config.int("npc_memory.max_fact_chars", 180, min_value=40)
 DEFAULT_UNEVALUATED_DC = game_config.int("mechanics.default_unevaluated_dc", 45, min_value=1, max_value=100)
+NPC_MOOD_DECAY_PER_HOUR = game_config.float("mechanics.mood_decay_per_hour", 1.0, min_value=0.0)
 PROMPT_COMPACT_TEXT_CHARS = game_config.int("prompt_context.compact_text_chars", 1200, min_value=80)
 PROMPT_COMPACT_LIST_ITEMS = game_config.int("prompt_context.compact_list_items", 8, min_value=1)
 PROMPT_COMPACT_LIST_CHARS = game_config.int("prompt_context.compact_list_chars", 220, min_value=40)
@@ -96,6 +98,11 @@ PROMPT_DM_RECENT_EXCHANGE_LIMIT = game_config.int("prompt_context.dm_recent_exch
 PROMPT_DM_RECENT_PLAYER_CHARS = game_config.int("prompt_context.dm_recent_player_chars", 220, min_value=40)
 PROMPT_DM_RECENT_DM_CHARS = game_config.int("prompt_context.dm_recent_dm_chars", 320, min_value=80)
 PROMPT_DM_SUMMARY_CHARS = game_config.int("prompt_context.dm_summary_chars", 600, min_value=80)
+PROMPT_TRANSCRIPT_RETRIEVAL_MAX_SNIPPETS = game_config.int("prompt_context.transcript_retrieval_max_snippets", 3, min_value=0)
+PROMPT_TRANSCRIPT_RETRIEVAL_MAX_CHARS = game_config.int("prompt_context.transcript_retrieval_max_chars", 260, min_value=80)
+PROMPT_TRANSCRIPT_RETRIEVAL_MAX_TURNS = game_config.int("prompt_context.transcript_retrieval_max_turns", 80, min_value=1)
+PROMPT_TRANSCRIPT_RETRIEVAL_TERM_LIMIT = game_config.int("prompt_context.transcript_retrieval_term_limit", 12, min_value=1)
+TURN_MEMORY_UPDATE_MAX_FACTS = game_config.int("npc_memory.turn_memory_update_max_facts", 6, min_value=1)
 SCENE_FACT_MAX_PER_SCOPE = game_config.int("scene_memory.max_facts_per_scope", 12, min_value=1)
 MODEL_DM_TEMPERATURE = game_config.float("model_calls.dm_temperature", 0.75, min_value=0.0, max_value=2.0)
 MODEL_DM_MAX_TOKENS = game_config.int("model_calls.dm_max_tokens", 1200, min_value=1)
@@ -110,7 +117,7 @@ MODEL_NARRATIVE_BRIEF_MAX_TOKENS = game_config.int("model_calls.narrative_brief_
 MODEL_NPC_REVIEW_TEMPERATURE = game_config.float("model_calls.npc_review_temperature", 0.45, min_value=0.0, max_value=2.0)
 MODEL_NPC_REVIEW_MAX_TOKENS = game_config.int("model_calls.npc_review_max_tokens", 900, min_value=1)
 MODEL_TURN_SUMMARY_TEMPERATURE = game_config.float("model_calls.turn_summary_temperature", 0.2, min_value=0.0, max_value=2.0)
-MODEL_TURN_SUMMARY_MAX_TOKENS = game_config.int("model_calls.turn_summary_max_tokens", 250, min_value=1)
+MODEL_TURN_SUMMARY_MAX_TOKENS = game_config.int("model_calls.turn_summary_max_tokens", 650, min_value=1)
 MODEL_OOC_QUESTION_TEMPERATURE = game_config.float("model_calls.ooc_question_temperature", 0.2, min_value=0.0, max_value=2.0)
 MODEL_OOC_QUESTION_MAX_TOKENS = game_config.int("model_calls.ooc_question_max_tokens", 500, min_value=1)
 DM_NARRATIVE_MIN_PARAGRAPHS = game_config.int("dm_narration.min_paragraphs", 2, min_value=1)
@@ -128,6 +135,86 @@ KNOWLEDGE_PRIORITY_RULES = [
     "Recent summary, transcript, generated briefs, and model inference are continuity aids only after the first two.",
     "When sources conflict, follow the highest-priority source and avoid inventing a reconciliation.",
 ]
+PLAYER_RELATIONSHIP_TYPE_EXAMPLES = [
+    "stranger",
+    "rescuer",
+    "rescued",
+    "traveling companion",
+    "former traveling companion",
+    "friend",
+    "close friend",
+    "lover",
+    "former lover",
+    "wife",
+    "former wife",
+    "husband",
+    "former husband",
+    "spouse",
+    "former spouse",
+    "servant",
+    "slave",
+    "master",
+    "employer",
+    "employee",
+    "mentor",
+    "student",
+    "rival",
+    "enemy",
+    "dependent",
+    "protector",
+    "ward",
+    "family",
+]
+STORY_BIBLE_TOPIC_TRIGGERS = {
+    "slavery": [
+        "slave",
+        "slavery",
+        "slaver",
+        "enslaved",
+        "owner",
+        "master",
+        "property",
+        "command",
+        "order",
+        "tattoo",
+        "slave mark",
+        "red tattoo",
+        "blue tattoo",
+        "neck mark",
+        "binding spell",
+        "chain",
+        "chains",
+        "escape",
+        "escaped",
+        "fugitive",
+    ],
+    "general_considerations": [
+        "settlement",
+        "settlements",
+        "village",
+        "hamlet",
+        "town",
+        "city",
+        "travel",
+        "road",
+        "distance",
+        "market",
+        "bargain",
+        "bargaining",
+        "protection",
+    ],
+    "general_considerations.settlements": [
+        "settlement",
+        "settlements",
+        "village",
+        "hamlet",
+        "town",
+        "city",
+        "travel",
+        "road",
+        "distance",
+    ],
+}
 NPC_FACT_REPLACE_CATEGORIES = {
     "status",
     "location",
@@ -137,6 +224,7 @@ NPC_FACT_REPLACE_CATEGORIES = {
     "mark",
     "behavior",
     "relationship",
+    "party",
     "identity",
 }
 NPC_PROFILE_RANDOM = random.SystemRandom()
@@ -230,6 +318,22 @@ OOC_NOTE_PATTERN = re.compile(
     r"\s*[\)\]\}]?\s*$",
     re.IGNORECASE | re.DOTALL,
 )
+DM_OVERRIDE_PATTERN = re.compile(
+    r"^\s*[\(\[\{]?\s*"
+    r"dm\s+override"
+    r"\s*(?::|-)\s*"
+    r"(?P<body>.+?)"
+    r"\s*[\)\]\}]?\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+DM_OVERRIDE_BODY_PATTERN = re.compile(
+    r"^\s*"
+    r"(?P<scope>scene|world|npc(?:\s+[^:]+)?)"
+    r"\s*(?::|-)\s*"
+    r"(?P<fact>.+?)"
+    r"\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 class ConversationManager:
     """Manages conversation history and summary for efficient API calls."""
     
@@ -249,10 +353,45 @@ class ConversationManager:
     def _load_story_bible(self) -> str:
         """Load the story bible for context."""
         try:
-            with open(STORY_BIBLE_PATH, "r", encoding="utf-8") as f:
-                return f.read()
+            story_bible_path = path_config.story_bible_path
+            text = story_bible_path.read_text(encoding="utf-8")
+            if story_bible_path.suffix.lower() == ".json" or text.lstrip().startswith("{"):
+                loaded = json.loads(text)
+                return self._flatten_story_bible_reference(loaded)
+            return text
         except FileNotFoundError:
             return "Story bible not found."
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse story bible JSON: {e}")
+            return "Story bible not found."
+
+    def _flatten_story_bible_reference(self, value: Any) -> str:
+        """Convert structured story-bible JSON into searchable canonical text."""
+        lines: List[str] = []
+
+        def label(path: List[str]) -> str:
+            return " / ".join(str(part).replace("_", " ").title() for part in path)
+
+        def walk(node: Any, path: List[str]):
+            if isinstance(node, dict):
+                for key, child in node.items():
+                    walk(child, path + [str(key)])
+                return
+            if isinstance(node, list):
+                if all(not isinstance(item, (dict, list)) for item in node):
+                    clean_items = [str(item).strip() for item in node if str(item).strip()]
+                    if clean_items:
+                        lines.append(f"{label(path)}: {', '.join(clean_items)}")
+                    return
+                for index, child in enumerate(node, start=1):
+                    walk(child, path + [str(index)])
+                return
+            text = str(node).strip()
+            if text:
+                lines.append(f"{label(path)}: {text}")
+
+        walk(value, [])
+        return "\n".join(lines)
     def _load_summary_file(self) -> str:
         """Load the persistent one-line turn summary file."""
         try:
@@ -261,9 +400,9 @@ class ConversationManager:
         except Exception as e:
             logger.error(f"Failed to load summary file: {e}")
         return ""
-    def _parse_story_transcript(self, transcript_text: str) -> List[Tuple[str, str]]:
-        """Extract player/DM pairs from the markdown story transcript."""
-        exchanges = []
+    def _parse_story_transcript_entries(self, transcript_text: str, limit: Optional[int] = None) -> List[Dict[str, str]]:
+        """Extract structured turn entries from the markdown story transcript."""
+        entries: List[Dict[str, str]] = []
         turn_pattern = re.compile(r"^##[ \t]+Turn[^\n]*\n(?P<body>.*?)(?=^##[ \t]+|\Z)", re.MULTILINE | re.DOTALL)
         for match in turn_pattern.finditer(transcript_text or ""):
             section = None
@@ -286,8 +425,21 @@ class ConversationManager:
             player_input = "\n".join(player_lines).strip()
             dm_response = "\n".join(dm_lines).strip()
             if player_input and dm_response:
-                exchanges.append((player_input, dm_response))
-        return exchanges[-MAX_CONVERSATION_HISTORY:]
+                header = match.group(0).splitlines()[0].strip()
+                turn = re.sub(r"^##[ \t]+Turn[ \t]*", "", header).strip()
+                entries.append({
+                    "turn": turn,
+                    "player": player_input,
+                    "dm": dm_response,
+                })
+        if limit is not None:
+            normalized_limit = max(0, int(limit))
+            return entries[-normalized_limit:] if normalized_limit else []
+        return entries
+    def _parse_story_transcript(self, transcript_text: str) -> List[Tuple[str, str]]:
+        """Extract recent player/DM pairs from the markdown story transcript."""
+        entries = self._parse_story_transcript_entries(transcript_text, limit=MAX_CONVERSATION_HISTORY)
+        return [(entry["player"], entry["dm"]) for entry in entries]
     def _load_story_transcript_history(self) -> List[Tuple[str, str]]:
         """Load recent player/DM exchanges from the persistent transcript."""
         try:
@@ -302,6 +454,15 @@ class ConversationManager:
         self.history = self._load_story_transcript_history()
         self.interactions_since_summary = 0
         return len(self.history)
+    def get_transcript_entries(self, limit: int = PROMPT_TRANSCRIPT_RETRIEVAL_MAX_TURNS) -> List[Dict[str, str]]:
+        """Return structured transcript entries for local continuity retrieval."""
+        try:
+            if self.story_file_path.exists():
+                transcript_text = self.story_file_path.read_text(encoding="utf-8")
+                return self._parse_story_transcript_entries(transcript_text, limit=limit)
+        except Exception as e:
+            logger.error(f"Failed to load story transcript entries: {e}")
+        return []
     def get_summary_file_text(self) -> str:
         """Return the latest summary-file text for model context."""
         return self._load_summary_file() or self.summary
@@ -822,12 +983,26 @@ class GameEngine:
             "reputation": 0,
             "title": "",
             "age": 0,
+            "relationship_with_player": {
+                "type": "stranger",
+                "public_label": "Stranger",
+                "notes": "",
+            },
             "relationships": {},
             "known_facts": [],
         }
         for key, value in identity_source.items():
             if key not in identity and key != "guided_creation":
-                identity[key] = [] if isinstance(value, list) else {} if isinstance(value, dict) else ""
+                if isinstance(value, list):
+                    identity[key] = []
+                elif isinstance(value, dict):
+                    identity[key] = {}
+                elif isinstance(value, bool):
+                    identity[key] = value
+                elif isinstance(value, (int, float)):
+                    identity[key] = value
+                else:
+                    identity[key] = value if value is not None else ""
 
         stats_source = template.get("stats") if isinstance(template.get("stats"), dict) else {}
         stats = {stat: 0 for stat in (stats_source.keys() or ["Str", "Agi", "Vit", "Ins", "Will", "Crea"])}
@@ -1099,6 +1274,20 @@ class GameEngine:
             return player_rel.get("trust", default)
         if field == "relationship":
             return get_relationship_level(self._get_npc_field(npc, "trust", 0))
+        if field == "trust_label":
+            return get_relationship_level(self._get_npc_field(npc, "trust", 0))
+        if field == "relationship_with_player":
+            return self._npc_relationship_with_player(npc)
+        if field in {"relationship_type_with_player", "relationship_role_with_player"}:
+            return self._npc_relationship_with_player(npc).get("type", default)
+        if field in {"relationship_label_with_player", "player_relationship"}:
+            return self._npc_relationship_with_player_label(npc)
+        if field in {"party", "party_member"}:
+            for container in (identity, npc):
+                for party_field in ("party", "party_member"):
+                    if party_field in container:
+                        return self._coerce_bool(container.get(party_field), False)
+            return default
         if field in {"mood", "mood_score"}:
             return get_mood_score(npc, default)
         if field == "mood_label":
@@ -1191,7 +1380,7 @@ class GameEngine:
             "name", "identity", "relationship", "trust", "mood", "status", "condition",
             "conditions", "position", "location", "injury", "injuries", "wound", "wounds",
             "bleeding", "fracture", "restraints", "chain", "chains", "mark", "brand",
-            "tattoo", "behavior", "goal", "need", "fear", "knowledge", "memory",
+            "tattoo", "behavior", "goal", "need", "fear", "party", "knowledge", "memory",
         }:
             return True
         if lowered.startswith(("is ", "has ", "was ", "needs ", "wants ", "fears ", "knows ", "believes ")):
@@ -1201,7 +1390,8 @@ class GameEngine:
             "knows", "believes", "wants", "needs", "fears", "trusts", "distrusts",
             "revealed", "implied", "acknowledges", "acknowledged", "accepts", "accepted",
             "refuses", "refused", "recognizes", "recognized", "questions", "challenges",
-            "tests", "hides", "hiding",
+            "tests", "hides", "hiding", "said", "says", "told", "mentioned", "mentions",
+            "warned", "warns", "called", "calls",
         }
         words = re.findall(r"[a-zA-Z']+", lowered)
         if not words:
@@ -1223,6 +1413,7 @@ class GameEngine:
             "identity": "identity",
             "relationship": "relationship",
             "trust": "relationship",
+            "party": "party",
             "mood": "status",
             "status": "status",
             "condition": "status",
@@ -1320,8 +1511,65 @@ class GameEngine:
         known_facts = self._sanitize_known_facts_value(identity.get("known_facts", []))
         clean = self._sanitize_known_fact_text(fact)
         if clean and len(clean) > 12:
+            unknown_subjects = self._unknown_knowledge_subjects(clean)
+            if unknown_subjects and self._known_facts_have_positive_subject(known_facts, unknown_subjects):
+                return
+            positive_subjects = self._positive_memory_subjects(clean)
+            if positive_subjects:
+                known_facts = [
+                    existing for existing in known_facts
+                    if not self._unknown_knowledge_subjects(existing, positive_subjects)
+                ]
             known_facts = self._merge_known_fact(known_facts, clean)
         identity["known_facts"] = known_facts[-NPC_FACT_MAX_COUNT:]
+
+    def _unknown_knowledge_subjects(self, fact: Any, restrict_to: Optional[set] = None) -> set:
+        """Return proper-noun subjects in claims that an NPC lacks knowledge of them."""
+        text = str(fact or "")
+        subjects = set()
+        patterns = [
+            r"\b(?:no knowledge of|never heard of|not heard of|does not know|doesn't know)\s+([A-Z][A-Za-z'’-]{2,})",
+            r"\b([A-Z][A-Za-z'’-]{2,})\s+(?:is|remains)\s+unknown\b",
+        ]
+        for pattern in patterns:
+            for match in re.finditer(pattern, text):
+                subjects.add(match.group(1).lower())
+        if restrict_to is not None:
+            subjects &= {str(item).lower() for item in restrict_to}
+        return subjects
+
+    def _positive_memory_subjects(self, fact: Any) -> set:
+        """Return proper-noun subjects from high-signal memory facts."""
+        text = str(fact or "")
+        if self._unknown_knowledge_subjects(text):
+            return set()
+        if not any(token in text.lower() for token in ("said", "mentioned", "knows", "revealed", "warned", "called", "there is", "there's")):
+            return set()
+        subjects = {
+            match.group(0).lower()
+            for match in re.finditer(r"\b[A-Z][A-Za-z'’-]{2,}\b", text)
+        }
+        npc_names = {
+            self._normalize_key_text(self._get_npc_field(npc, "known_name", ""))
+            for npc in self.game_state.get("npcs", {}).values()
+            if isinstance(npc, dict)
+        }
+        return {subject for subject in subjects if subject not in npc_names and subject not in {"the"}}
+
+    def _known_facts_have_positive_subject(self, known_facts: List[str], subjects: set) -> bool:
+        lowered_subjects = {str(subject).lower() for subject in subjects}
+        for fact in known_facts:
+            if self._unknown_knowledge_subjects(fact, lowered_subjects):
+                continue
+            positive_subjects = self._positive_memory_subjects(fact)
+            if positive_subjects & lowered_subjects:
+                return True
+            lowered_fact = str(fact or "").lower()
+            if any(subject in lowered_fact for subject in lowered_subjects) and any(
+                token in lowered_fact for token in ("said", "mentioned", "revealed", "called", "there is", "there's")
+            ):
+                return True
+        return False
 
     def _normalize_npc_gender(self, gender: Any) -> str:
         normalized = self._normalize_key_text(gender)
@@ -1716,11 +1964,72 @@ class GameEngine:
             if field in player_rel and field not in identity:
                 identity[field] = player_rel.get(field)
             player_rel.pop(field, None)
+        relationship_role = (
+            player_rel.get("relationship_with_player")
+            or player_rel.get("relationship_type")
+            or player_rel.get("relationship_role")
+            or player_rel.get("role")
+        )
+        legacy_relationship = player_rel.get("relationship")
+        if not relationship_role and legacy_relationship:
+            trust_labels = {
+                str(band.get("label", "")).strip().lower()
+                for band in load_trust_reference().get("trust_scale", [])
+                if isinstance(band, dict)
+            }
+            legacy_key = str(legacy_relationship).strip().lower()
+            if legacy_key and legacy_key not in trust_labels:
+                relationship_role = legacy_relationship
+        if relationship_role and "relationship_with_player" not in identity:
+            identity["relationship_with_player"] = self._normalize_relationship_with_player(relationship_role)
+        for field in ("relationship_with_player", "relationship_type", "relationship_role", "role"):
+            player_rel.pop(field, None)
         player_rel.pop("trust", None)
         player_rel.pop("relationship", None)
         if not player_rel:
             relationships.pop("player", None)
         migrate_mood_fields()
+
+    def _relationship_label_from_type(self, relationship_type: Any) -> str:
+        clean = self._compact_text(relationship_type, 80).replace("_", " ").replace("-", " ")
+        clean = " ".join(clean.split()).strip()
+        if not clean:
+            return "Stranger"
+        return " ".join(part.capitalize() for part in clean.split())
+
+    def _normalize_relationship_with_player(self, value: Any) -> Dict[str, str]:
+        if isinstance(value, dict):
+            rel_type = (
+                value.get("type")
+                or value.get("relationship_type")
+                or value.get("role")
+                or value.get("category")
+                or value.get("public_label")
+                or value.get("label")
+                or "stranger"
+            )
+            public_label = value.get("public_label") or value.get("label")
+            notes = value.get("notes") or ""
+        else:
+            rel_type = value or "stranger"
+            public_label = ""
+            notes = ""
+        rel_type = self._compact_text(rel_type, 80).replace("_", " ").strip().lower() or "stranger"
+        public_label = self._compact_text(public_label, 80) or self._relationship_label_from_type(rel_type)
+        return {
+            "type": rel_type,
+            "public_label": public_label,
+            "notes": self._compact_text(notes, 160),
+        }
+
+    def _npc_relationship_with_player(self, npc: Dict[str, Any]) -> Dict[str, str]:
+        identity = self._npc_identity(npc)
+        relationship = identity.get("relationship_with_player")
+        return self._normalize_relationship_with_player(relationship)
+
+    def _npc_relationship_with_player_label(self, npc: Dict[str, Any]) -> str:
+        relationship = self._npc_relationship_with_player(npc)
+        return relationship.get("public_label") or self._relationship_label_from_type(relationship.get("type", "stranger"))
 
     def _set_npc_field(self, npc: Dict[str, Any], field: str, value: Any):
         """Safely write NPC data - protect known_facts from technical garbage."""
@@ -1751,6 +2060,29 @@ class GameEngine:
         if field == "role":
             if value not in ("", None):
                 identity["title"] = self._compact_text(value, 80)
+            return
+
+        if field in {"party", "party_member", "is_party_member"}:
+            is_party = self._coerce_bool(value, False)
+            identity["party"] = is_party
+            identity["party_member"] = is_party
+            npc["party"] = is_party
+            return
+
+        if field == "party_role":
+            if value not in ("", None):
+                identity["party_role"] = self._compact_text(value, 80)
+            return
+
+        if field in {"relationship_with_player", "player_relationship"}:
+            identity["relationship_with_player"] = self._normalize_relationship_with_player(value)
+            return
+
+        if field in {"relationship_type_with_player", "relationship_role_with_player"}:
+            current = self._npc_relationship_with_player(npc)
+            current["type"] = value
+            current["public_label"] = ""
+            identity["relationship_with_player"] = self._normalize_relationship_with_player(current)
             return
 
         if field == "deviation_range":
@@ -1904,6 +2236,9 @@ class GameEngine:
             identity["race"] = "beastfolk"
         identity.setdefault("relationships", {})
         self._migrate_player_relationship_fields(template)
+        identity["relationship_with_player"] = self._normalize_relationship_with_player(
+            identity.get("relationship_with_player")
+        )
         identity.setdefault("known_facts", [])
         self._merge_npc_aliases(template, list(aliases))
         self._ensure_npc_name_fields(npc_id, template, source)
@@ -2275,8 +2610,162 @@ Remember: These responses will be stitched together into a continuous story. Pri
         question = " ".join(match.group("question").split()).strip()
         return question
 
+    def _extract_dm_override(self, player_input: Any) -> Optional[Dict[str, str]]:
+        """Return a parsed direct DM override when the entire input uses override syntax."""
+        text = str(player_input or "").strip()
+        if not text:
+            return None
+        match = DM_OVERRIDE_PATTERN.match(text)
+        if not match:
+            return None
+        body = " ".join(match.group("body").split()).strip()
+        body_match = DM_OVERRIDE_BODY_PATTERN.match(body)
+        if not body_match:
+            return {"error": "Use (DM Override: scene: fact), (DM Override: world: fact), or (DM Override: npc Name: fact)."}
+        scope = self._normalize_key_text(body_match.group("scope"))
+        fact = self._clean_override_fact(body_match.group("fact"))
+        if not fact:
+            return {"error": "Override fact was empty or unsafe."}
+        if scope.startswith("npc "):
+            return {
+                "scope": "npc",
+                "target": scope[4:].strip(),
+                "fact": fact,
+            }
+        return {
+            "scope": scope,
+            "target": "",
+            "fact": fact,
+        }
+
+    def _clean_override_fact(self, fact: Any, max_chars: int = 220) -> str:
+        """Normalize a direct override fact while rejecting nested/technical payloads."""
+        if not isinstance(fact, (str, int, float, bool)):
+            return ""
+        clean = " ".join(str(fact).split()).strip()
+        if not clean:
+            return ""
+        lowered = clean.lower()
+        blocked = ("known_facts", "identity:", "stats:", "skills:", "derived:", "{", "}", "[", "]", '":', "':")
+        if any(token in lowered for token in blocked):
+            return ""
+        return clean[:max_chars].rstrip()
+
+    def _ooc_note_looks_like_override_request(self, question: str) -> bool:
+        """Detect OOC preference notes that should teach override syntax instead of calling the API."""
+        lowered = self._normalize_key_text(question)
+        if not lowered:
+            return False
+        if any(lowered.startswith(prefix) for prefix in (
+            "i want ",
+            "i would like ",
+            "please make ",
+            "please have ",
+            "can you make ",
+            "can you have ",
+            "can you establish ",
+            "establish that ",
+            "inject ",
+            "override ",
+        )):
+            return True
+        return " i want " in f" {lowered} " or " i would like " in f" {lowered} "
+
+    def _scene_role_name(self, role: str) -> str:
+        """Infer a named scene role such as 'healer' from current scene facts when obvious."""
+        role_key = self._normalize_key_text(role)
+        if not role_key:
+            return ""
+        context = " ".join([
+            self._get_scene_context(),
+            " ".join(self._compact_scene_facts_for_prompt(20, 220)),
+        ])
+        pattern = re.compile(rf"\b(?:local\s+)?{re.escape(role_key)}\s*,\s*([A-Z][a-zA-Z'\-]+)", re.IGNORECASE)
+        match = pattern.search(context)
+        if match:
+            return f"{role_key.title()} {match.group(1)}"
+        return ""
+
+    def _scene_title_for_name(self, name: str) -> str:
+        """Infer a role title for a named NPC from scene facts when obvious."""
+        clean_name = str(name or "").strip()
+        if not clean_name:
+            return ""
+        context = " ".join([
+            self._get_scene_context(),
+            " ".join(self._compact_scene_facts_for_prompt(20, 220)),
+        ])
+        pattern = re.compile(rf"\b(?:local\s+)?([a-z][a-z'\-]+)\s*,\s*{re.escape(clean_name)}\b", re.IGNORECASE)
+        match = pattern.search(context)
+        if not match:
+            return ""
+        role = self._normalize_key_text(match.group(1))
+        if role in {"local", "current", "the", "a", "an"}:
+            return ""
+        return f"{role.title()} {clean_name[:1].upper() + clean_name[1:]}"
+
+    def _known_name_corrected_text(self, text: str) -> str:
+        """Lightly correct near-miss known NPC names in generated override suggestions."""
+        known_names = [
+            npc.get("known_name")
+            for npc in self._get_known_npcs_for_prompt()
+            if isinstance(npc, dict) and self._is_learned_npc_name(npc.get("known_name"), npc.get("npc_id", ""))
+        ]
+        canonical = {self._normalize_key_text(name): str(name) for name in known_names if name}
+        if not canonical:
+            return text
+        name_keys = list(canonical.keys())
+
+        def replace_word(match: re.Match) -> str:
+            word = match.group(0)
+            normalized = self._normalize_key_text(word)
+            if normalized in canonical:
+                return canonical[normalized]
+            if len(normalized) < 4:
+                return word
+            candidates = [name for name in name_keys if name[:1] == normalized[:1]]
+            close = difflib.get_close_matches(normalized, candidates, n=1, cutoff=0.4)
+            return canonical[close[0]] if close else word
+
+        return re.sub(r"\b[A-Za-z][A-Za-z'\-]*\b", replace_word, text)
+
+    def _suggest_dm_override_phrase(self, question: str) -> str:
+        """Convert an OOC preference note into an explicit override syntax hint."""
+        text = " ".join(str(question or "").split()).strip()
+        text = re.sub(
+            r"\s*[.?!,;:]*\s*(?:can|could)\s+you\s+(?:do\s+that|make\s+that\s+happen|work\s+with\s+that)\??\s*$",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        ).strip()
+        text = re.sub(r"[?.!]+$", "", text).strip()
+        fact = ""
+        want_match = re.match(r"^(?:i\s+want|i\s+would\s+like)\s+(?P<subject>.+?)\s+to\s+(?P<action>.+)$", text, flags=re.IGNORECASE)
+        command_match = re.match(r"^(?:please\s+make|please\s+have|can\s+you\s+make|can\s+you\s+have|can\s+you\s+establish)\s+(?P<subject>.+?)\s+to\s+(?P<action>.+)$", text, flags=re.IGNORECASE)
+        match = want_match or command_match
+        if match:
+            subject = re.sub(r"^(?:the|a|an)\s+", "", match.group("subject").strip(), flags=re.IGNORECASE)
+            titled_name = self._scene_title_for_name(subject)
+            if titled_name:
+                subject = titled_name
+            else:
+                role_name = self._scene_role_name(subject)
+                subject = role_name or (subject[:1].upper() + subject[1:])
+            action = match.group("action").strip()
+            fact = f"{subject} will {action}."
+        else:
+            fact = text[:1].upper() + text[1:]
+            if fact and fact[-1] not in ".!?":
+                fact += "."
+        fact = self._known_name_corrected_text(self._clean_override_fact(fact) or "Story detail goes here.")
+        return f"OOC Note -- To inject a story detail use the following phrase: (DM Override: scene: {fact})"
+
     def _build_ooc_question_context(self, player_input: str, question: str) -> Dict[str, Any]:
         """Build a local-only context packet for OOC referee answers."""
+        scene_facts = self._compact_scene_facts_for_prompt(
+            PROMPT_COMPACT_LIST_ITEMS,
+            PROMPT_COMPACT_LIST_CHARS,
+        )
         return {
             "knowledge_priority": self._knowledge_priority_context(),
             "raw_player_input": player_input,
@@ -2286,12 +2775,10 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 PROMPT_COMPACT_TEXT_CHARS,
             ),
             "recent_exchanges": self._compact_recent_exchanges(PROMPT_RECENT_EXCHANGE_LIMIT),
+            "relevant_transcript_evidence": self._retrieve_relevant_transcript_evidence(question),
             "opening_scene": self._opening_scene_context(),
             "current_scene": self._compact_text(self._get_scene_context(), PROMPT_SCENE_CONTEXT_CHARS),
-            "scene_facts": self._compact_scene_facts_for_prompt(
-                PROMPT_COMPACT_LIST_ITEMS,
-                PROMPT_COMPACT_LIST_CHARS,
-            ),
+            "scene_facts": scene_facts,
             "world_facts": self._compact_list_text(
                 self.game_state.get("world", {}).get("facts", []),
                 PROMPT_COMPACT_LIST_ITEMS,
@@ -2306,6 +2793,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 question,
                 max_chars=PROMPT_RUNTIME_STORY_BIBLE_CHARS,
             ),
+            "story_bible_lore": self._select_story_bible_lore(question, scene_facts=scene_facts, max_entries=6),
             "answer_rules": [
                 "Answer out of character as the DM/referee.",
                 "Do not advance the story, trigger rolls, speak as NPCs, or emit commands.",
@@ -2345,25 +2833,15 @@ Remember: These responses will be stitched together into a continuous story. Pri
             answer = f"OOC note - {answer}"
         return answer
 
-    def _process_ooc_question(self, player_input: str, question: str) -> Dict[str, Any]:
-        """Answer an OOC DM note without running the story-turn pipeline."""
-        context = self._build_ooc_question_context(player_input, question)
-        response = self.api_manager.call_api(
-            "ooc_question",
-            context,
-            temperature=MODEL_OOC_QUESTION_TEMPERATURE,
-            max_tokens=MODEL_OOC_QUESTION_MAX_TOKENS,
-        )
-        answer = self._normalize_ooc_answer(response, context)
+    def _ooc_bypass_result(self, player_input: str, question: str, narrative: str,
+                           command: Dict[str, Any], success: bool, message: str) -> Dict[str, Any]:
+        """Return a standard OOC response shell that bypasses the story pipeline."""
         return {
-            "narrative": answer,
-            "command_executed": {
-                "action": "ooc_note",
-                "command": {"message": "Out-of-character question answered; no game state change requested."},
-            },
+            "narrative": narrative,
+            "command_executed": command,
             "mechanical_result": {
-                "success": True,
-                "message": "OOC question answered; mechanics, NPC review, narration commands, summary, and time advancement were bypassed.",
+                "success": success,
+                "message": message,
             },
             "ooc": True,
             "ooc_question": question,
@@ -2385,11 +2863,106 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 "reason": "OOC DM note",
             },
             "skill_result": None,
-            "turn_summary": "OOC question answered; story summary not updated.",
+            "turn_summary": "OOC note handled; story summary not updated.",
             "token_usage": self.api_manager.get_token_usage(),
             "updated_combat_state": self.combat.state if self.combat.state.get("active") else None,
             "map": get_current_map(self.combat.state) if self.combat.state.get("active") else None,
         }
+
+    def _process_dm_override(self, player_input: str, override: Dict[str, str]) -> Dict[str, Any]:
+        """Apply a direct player-authored DM override without running the story pipeline."""
+        if override.get("error"):
+            return self._ooc_bypass_result(
+                player_input,
+                override.get("error", ""),
+                "(Override failed)",
+                {"action": "dm_override", "command": {"error": override.get("error")}},
+                False,
+                override.get("error", "Override failed."),
+            )
+        scope = override.get("scope", "")
+        fact = override.get("fact", "")
+        target = override.get("target", "")
+        result: Dict[str, Any]
+        if scope == "scene":
+            result = self._apply_scene_update({
+                "action": "scene_update",
+                "command": {"set_facts": {"local": {self._scene_fact_key(fact): fact}}},
+            })
+        elif scope == "world":
+            result = self._apply_note_fact({
+                "action": "note_fact",
+                "command": {"fact": fact},
+            })
+        elif scope == "npc":
+            if not target:
+                result = {"success": False, "message": "NPC override requires a target name."}
+            else:
+                npc_id = (
+                    self._resolve_npc_reference(target)
+                    or self._ensure_npc_for_interaction(target, updates={"known_facts": [f"knowledge: {fact}"]})
+                )
+                if npc_id and npc_id in self.game_state.setdefault("npcs", {}):
+                    self._append_npc_known_fact(self.game_state["npcs"][npc_id], f"knowledge: {fact}")
+                    result = {"success": True, "message": "NPC override recorded.", "npc_id": npc_id, "fact": fact}
+                else:
+                    result = {"success": False, "message": f"Could not resolve NPC override target: {target}"}
+        else:
+            result = {"success": False, "message": f"Unknown override scope: {scope}"}
+
+        success = bool(result.get("success"))
+        if success:
+            self._save_game_state()
+        return self._ooc_bypass_result(
+            player_input,
+            fact,
+            "(Override successful)" if success else "(Override failed)",
+            {
+                "action": "dm_override",
+                "command": {
+                    "scope": scope,
+                    "target": target,
+                    "fact": fact,
+                },
+            },
+            success,
+            result.get("message", "Override successful." if success else "Override failed."),
+        )
+
+    def _process_ooc_question(self, player_input: str, question: str) -> Dict[str, Any]:
+        """Answer an OOC DM note without running the story-turn pipeline."""
+        if self._ooc_note_looks_like_override_request(question):
+            answer = self._suggest_dm_override_phrase(question)
+            return self._ooc_bypass_result(
+                player_input,
+                question,
+                answer,
+                {
+                    "action": "ooc_note",
+                    "command": {"message": "Override syntax suggested; no game state change requested."},
+                },
+                True,
+                "OOC override syntax suggested; mechanics, NPC review, narration commands, summary, and time advancement were bypassed.",
+            )
+        context = self._build_ooc_question_context(player_input, question)
+        response = self.api_manager.call_api(
+            "ooc_question",
+            context,
+            temperature=MODEL_OOC_QUESTION_TEMPERATURE,
+            max_tokens=MODEL_OOC_QUESTION_MAX_TOKENS,
+        )
+        answer = self._normalize_ooc_answer(response, context)
+        return self._ooc_bypass_result(
+            player_input,
+            question,
+            answer,
+            {
+                "action": "ooc_note",
+                "command": {"message": "Out-of-character question answered; no game state change requested."},
+            },
+            True,
+            "OOC question answered; mechanics, NPC review, narration commands, summary, and time advancement were bypassed.",
+        )
     
     def _compact_text(self, value: Any, max_chars: int = PROMPT_COMPACT_TEXT_CHARS) -> str:
         """Collapse whitespace and cap text for prompt budget control."""
@@ -2397,6 +2970,33 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if len(compact) <= max_chars:
             return compact
         return compact[:max_chars - 3].rstrip() + "..."
+
+    def _compact_text_preserve_ends(self, value: Any, max_chars: int = PROMPT_COMPACT_TEXT_CHARS) -> str:
+        """Compact long text while preserving both setup and final outcome/dialogue."""
+        compact = " ".join(str(value or "").split())
+        if len(compact) <= max_chars:
+            return compact
+        if max_chars < 20:
+            return self._compact_text(compact, max_chars)
+        marker = " ... "
+        head_chars = max(8, (max_chars - len(marker)) // 2)
+        tail_chars = max(8, max_chars - len(marker) - head_chars)
+        return f"{compact[:head_chars].rstrip()}{marker}{compact[-tail_chars:].lstrip()}"
+
+    def _coerce_bool(self, value: Any, default: Any = False) -> Any:
+        """Coerce common JSON/model truthy and falsey values without guessing on unknown text."""
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        normalized = self._normalize_key_text(value)
+        if normalized in {"true", "yes", "y", "1", "on", "join", "joins", "joined", "member", "party", "with party", "in party"}:
+            return True
+        if normalized in {"false", "no", "n", "0", "off", "leave", "leaves", "left", "depart", "departs", "departed", "not member", "not in party"}:
+            return False
+        return default
     def _compact_list_text(self, values: Any, max_items: int = PROMPT_COMPACT_LIST_ITEMS,
                            max_chars: int = PROMPT_COMPACT_LIST_CHARS) -> List[str]:
         """Return a bounded list of compact strings."""
@@ -2448,6 +3048,40 @@ Remember: These responses will be stitched together into a continuous story. Pri
             f"{time_state['clock']} ({time_state['time_of_day']}), "
             f"season: {time_state['season']}. This saved clock is authoritative."
         )
+    def _world_location_context(self) -> Dict[str, Any]:
+        """Return the saved player location without empty fields."""
+        location = self.game_state.get("world", {}).get("location", {})
+        if not isinstance(location, dict):
+            return {}
+        return {
+            str(key): value
+            for key, value in location.items()
+            if value not in (None, "", [], {})
+        }
+    def _format_world_location_for_prompt(self) -> str:
+        location = self._world_location_context()
+        if not location:
+            return "unknown. This saved location is authoritative when present."
+        ordered_keys = (
+            "settlement",
+            "site",
+            "area",
+            "district",
+            "building",
+            "room",
+            "region",
+            "coordinates",
+        )
+        used = set()
+        parts = []
+        for key in ordered_keys:
+            if key in location:
+                parts.append(f"{key}: {location[key]}")
+                used.add(key)
+        for key, value in location.items():
+            if key not in used:
+                parts.append(f"{key}: {value}")
+        return "; ".join(parts) + ". This saved location is authoritative."
     def _time_fact_conflicts_with_world_time(self, fact: str) -> bool:
         """Drop stale time-of-day facts from prompt packets when the saved clock disagrees."""
         text = self._normalize_key_text(fact)
@@ -2513,10 +3147,120 @@ Remember: These responses will be stitched together into a continuous story. Pri
         return [
             {
                 "player": self._compact_text(exchange.get("player", ""), max_player_chars),
-                "dm": self._compact_text(exchange.get("dm", ""), max_dm_chars),
+                "dm": self._compact_text_preserve_ends(exchange.get("dm", ""), max_dm_chars),
             }
             for exchange in self.conversation_manager.get_recent_exchanges(limit)
         ]
+
+    def _transcript_retrieval_terms(self, player_input: str) -> List[Dict[str, Any]]:
+        """Extract cheap local search terms from the player's latest input."""
+        text = str(player_input or "")
+        stopwords = {
+            "about", "after", "again", "also", "been", "before", "being", "could", "does",
+            "down", "from", "have", "into", "just", "know", "like", "look", "more", "note",
+            "only", "over", "please", "should", "tell", "that", "their", "them", "then",
+            "there", "they", "this", "what", "when", "where", "which", "while", "with",
+            "would", "your", "you", "dm",
+        }
+        terms: List[Dict[str, Any]] = []
+        seen = set()
+
+        def add(term: str, weight: int, phrase: bool = False):
+            clean = " ".join(str(term or "").split()).strip(".,!?;:()[]{}\"'")
+            if len(clean) < 3:
+                return
+            key = clean.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            terms.append({"term": clean, "weight": weight, "phrase": phrase})
+
+        for quoted in re.findall(r"[\"“”]([^\"“”]{3,80})[\"“”]", text):
+            add(quoted, 7, phrase=True)
+        for proper in re.findall(r"\b[A-Z][A-Za-z'’-]{2,}\b", text):
+            if proper.lower() not in stopwords:
+                add(proper, 6)
+        for word in re.findall(r"\b[a-zA-Z][a-zA-Z'’-]{3,}\b", text):
+            lowered = word.lower()
+            if lowered not in stopwords:
+                add(lowered, 2)
+            if len(terms) >= PROMPT_TRANSCRIPT_RETRIEVAL_TERM_LIMIT:
+                break
+        return terms[:PROMPT_TRANSCRIPT_RETRIEVAL_TERM_LIMIT]
+
+    def _transcript_match_count(self, haystack: str, term: str, phrase: bool = False) -> int:
+        """Count bounded case-insensitive transcript matches."""
+        if not term:
+            return 0
+        if phrase or " " in term:
+            return haystack.count(term.lower())
+        pattern = re.compile(rf"\b{re.escape(term.lower())}\b")
+        return len(pattern.findall(haystack))
+
+    def _transcript_evidence_excerpt(self, entry: Dict[str, str], terms: List[Dict[str, Any]], max_chars: int) -> str:
+        """Return a compact excerpt centered near the strongest matched term."""
+        player = str(entry.get("player", "") or "")
+        dm = str(entry.get("dm", "") or "")
+        combined = f"Player: {player}\nDM: {dm}".strip()
+        lowered = combined.lower()
+        match_index = -1
+        for term_info in sorted(terms, key=lambda item: item.get("weight", 0), reverse=True):
+            needle = str(term_info.get("term", "")).lower()
+            if not needle:
+                continue
+            match_index = lowered.find(needle)
+            if match_index >= 0:
+                break
+        if match_index < 0 or len(combined) <= max_chars:
+            return self._compact_text_preserve_ends(combined, max_chars)
+        half = max(40, max_chars // 2)
+        start = max(0, match_index - half)
+        end = min(len(combined), start + max_chars)
+        if end - start < max_chars:
+            start = max(0, end - max_chars)
+        excerpt = combined[start:end].strip()
+        if start > 0:
+            excerpt = "..." + excerpt
+        if end < len(combined):
+            excerpt = excerpt.rstrip() + "..."
+        return excerpt
+
+    def _retrieve_relevant_transcript_evidence(self, player_input: str,
+                                               max_snippets: int = PROMPT_TRANSCRIPT_RETRIEVAL_MAX_SNIPPETS,
+                                               max_chars: int = PROMPT_TRANSCRIPT_RETRIEVAL_MAX_CHARS) -> List[Dict[str, Any]]:
+        """Local transcript search used as a low-cost continuity aid for prompts."""
+        if max_snippets <= 0:
+            return []
+        terms = self._transcript_retrieval_terms(player_input)
+        if not terms:
+            return []
+        entries = self.conversation_manager.get_transcript_entries(PROMPT_TRANSCRIPT_RETRIEVAL_MAX_TURNS)
+        scored: List[Tuple[float, int, Dict[str, str], List[str]]] = []
+        for index, entry in enumerate(entries):
+            combined = f"{entry.get('player', '')}\n{entry.get('dm', '')}".lower()
+            score = 0.0
+            matched_terms: List[str] = []
+            for term_info in terms:
+                term = str(term_info.get("term", ""))
+                count = self._transcript_match_count(combined, term, bool(term_info.get("phrase")))
+                if count <= 0:
+                    continue
+                score += min(count, 3) * float(term_info.get("weight", 1))
+                matched_terms.append(term)
+            if score <= 0:
+                continue
+            recency_bonus = (index + 1) / max(1, len(entries)) * 0.5
+            scored.append((score + recency_bonus, index, entry, matched_terms[:5]))
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        evidence = []
+        for score, _index, entry, matched_terms in scored[:max_snippets]:
+            evidence.append({
+                "turn": entry.get("turn", ""),
+                "matched_terms": matched_terms,
+                "excerpt": self._transcript_evidence_excerpt(entry, terms, max_chars),
+            })
+        return evidence
+
     def _compact_player_for_prompt(self) -> Dict[str, Any]:
         """Keep only player fields the models need for turn reasoning."""
         player = self.game_state.get("player", {})
@@ -2875,6 +3619,182 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 continue
             selected[key] = self._compact_racial_profile({**profile, "name": profile.get("name", key)})
         return selected
+
+    def _load_story_bible_json(self) -> Dict[str, Any]:
+        """Load the structured story bible, when available."""
+        paths = [
+            path_config.story_bible_path,
+            path_config.references_dir / "Story_bible.json",
+            path_config.references_dir / "story_bible.json",
+        ]
+        seen = set()
+        for path in paths:
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            if path.suffix.lower() != ".json" or not path.exists():
+                continue
+            try:
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                return loaded if isinstance(loaded, dict) else {}
+            except Exception as e:
+                logger.error(f"Failed to load structured story bible: {e}")
+        return {}
+
+    def _story_bible_json_entries(self) -> List[Dict[str, str]]:
+        """Flatten structured story-bible facts into individually selectable entries."""
+        bible = self._load_story_bible_json()
+        entries: List[Dict[str, str]] = []
+
+        def walk(node: Any, path: List[str]):
+            if isinstance(node, dict):
+                for key, child in node.items():
+                    walk(child, path + [str(key)])
+                return
+            if isinstance(node, list):
+                if all(not isinstance(item, (dict, list)) for item in node):
+                    text = ", ".join(str(item).strip() for item in node if str(item).strip())
+                    if text and path:
+                        entries.append({
+                            "key": ".".join(path),
+                            "text": self._compact_text(text, 320),
+                        })
+                    return
+                for index, child in enumerate(node, start=1):
+                    walk(child, path + [str(index)])
+                return
+            text = str(node).strip()
+            if text and path:
+                entries.append({
+                    "key": ".".join(path),
+                    "text": self._compact_text(text, 320),
+                })
+
+        walk(bible, [])
+        return entries
+
+    def _story_bible_relevance_text(self, player_input: str,
+                                    turn_context: Optional[Dict[str, Any]],
+                                    scene_facts: Optional[List[str]]) -> str:
+        """Build the relevance text used for deterministic story-bible lore selection."""
+        parts: List[str] = [
+            player_input or "",
+            self._get_scene_context() or "",
+            " ".join(scene_facts or []),
+            " ".join(self.game_state.get("world", {}).get("facts", []) if isinstance(self.game_state.get("world", {}).get("facts", []), list) else []),
+        ]
+        involved = set()
+        if isinstance(turn_context, dict):
+            for field in ("relevant_lore_keys", "relevant_races", "continuity_constraints", "forbidden_assumptions", "mechanical_risks"):
+                value = turn_context.get(field, [])
+                if isinstance(value, list):
+                    parts.append(" ".join(str(item) for item in value))
+                elif value:
+                    parts.append(str(value))
+            parts.append(str(turn_context.get("likely_intent", "")))
+            parts.append(str(turn_context.get("scene_focus", "")))
+            involved = {str(npc_id) for npc_id in turn_context.get("involved_npcs", []) or []}
+        npcs = self.game_state.get("npcs", {})
+        if isinstance(npcs, dict):
+            npc_items = (
+                [(npc_id, npcs.get(npc_id)) for npc_id in involved if npc_id in npcs]
+                if involved else []
+            )
+            for npc_id, npc in npc_items:
+                if not isinstance(npc, dict):
+                    continue
+                identity = self._npc_identity(npc)
+                parts.extend([
+                    npc_id,
+                    str(identity.get("background", "")),
+                    str(identity.get("class_theme", "")),
+                    " ".join(str(fact) for fact in identity.get("known_facts", []) if isinstance(identity.get("known_facts", []), list)),
+                ])
+        return self._normalize_key_text(" ".join(str(part) for part in parts if part))
+
+    def _triggered_story_bible_topics(self, relevance_text: str,
+                                      turn_context: Optional[Dict[str, Any]]) -> List[str]:
+        """Return structured story-bible topics that should be considered this turn."""
+        triggered: List[str] = []
+        requested = []
+        if isinstance(turn_context, dict):
+            requested.extend(turn_context.get("relevant_lore_keys", []) or [])
+            requested.extend(turn_context.get("relevant_races", []) or [])
+        requested_text = self._normalize_key_text(" ".join(str(item) for item in requested))
+        for topic, triggers in STORY_BIBLE_TOPIC_TRIGGERS.items():
+            topic_key = self._normalize_key_text(topic)
+            if topic_key and topic_key in requested_text and topic not in triggered:
+                triggered.append(topic)
+                continue
+            if any(self._normalize_key_text(trigger) in relevance_text for trigger in triggers):
+                if topic not in triggered:
+                    triggered.append(topic)
+        if "slavery_legal_and_common" in requested_text and "slavery" not in triggered:
+            triggered.append("slavery")
+        return triggered
+
+    def _select_story_bible_lore(self, player_input: str,
+                                 turn_context: Optional[Dict[str, Any]] = None,
+                                 scene_facts: Optional[List[str]] = None,
+                                 max_entries: int = 8) -> List[Dict[str, str]]:
+        """Select mandatory structured story-bible facts relevant to this turn."""
+        entries = self._story_bible_json_entries()
+        if not entries:
+            return []
+        relevance_text = self._story_bible_relevance_text(player_input, turn_context, scene_facts)
+        topics = self._triggered_story_bible_topics(relevance_text, turn_context)
+        keywords = {
+            word for word in re.findall(r"[a-z0-9_]{4,}", relevance_text)
+            if word not in {"that", "with", "from", "this", "have", "they", "their", "will", "known"}
+        }
+        scored: List[Tuple[int, Dict[str, str]]] = []
+        price_relevant = any(word in relevance_text for word in ("price", "prices", "cost", "market", "value", "sale", "buy", "sell"))
+        for entry in entries:
+            key = str(entry.get("key", ""))
+            key_norm = self._normalize_key_text(key.replace(".", " "))
+            text_norm = self._normalize_key_text(entry.get("text", ""))
+            combined = f"{key_norm} {text_norm}"
+            combined_tokens = set(re.findall(r"[a-z0-9_]{3,}", combined))
+            score = sum(
+                1 for keyword in keywords
+                if keyword in combined_tokens or (len(keyword) > 8 and keyword in combined)
+            )
+            for topic in topics:
+                topic_norm = self._normalize_key_text(topic.replace(".", " "))
+                if key == topic or key.startswith(f"{topic}.") or topic_norm in key_norm:
+                    score += 12
+            if key.startswith("slavery.types.red_tattoo") and any(word in relevance_text for word in ("red", "slave mark", "mark", "tattoo")):
+                score += 5
+            if key.startswith("slavery.types.blue_tattoo") and "blue" not in relevance_text:
+                score -= 5
+            if key.startswith("slavery.") and any(word in relevance_text for word in ("command", "order", "orders", "refuse", "refusing", "hurt", "pain", "obey")):
+                if ".mechanics_" in key or key.endswith("command_trigger_clarification"):
+                    score += 10
+            if key.startswith("slavery.prices") and not price_relevant:
+                score -= 10
+            if key.startswith("general_considerations.virginity_awareness") and not any(
+                word in relevance_text for word in ("virgin", "market", "bargain", "female", "protection")
+            ):
+                score -= 8
+            if score > 0:
+                scored.append((score, entry))
+        scored.sort(key=lambda item: (-item[0], item[1].get("key", "")))
+        selected = []
+        seen = set()
+        for _, entry in scored:
+            key = entry.get("key", "")
+            if key in seen:
+                continue
+            selected.append({
+                "source": "references/Story_bible.json",
+                "key": key,
+                "text": entry.get("text", ""),
+            })
+            seen.add(key)
+            if len(selected) >= max_entries:
+                break
+        return selected
+
     def _story_bible_excerpt(self, player_input: str,
                              turn_context: Optional[Dict[str, Any]] = None,
                              max_chars: int = PROMPT_STORY_BIBLE_CHARS) -> str:
@@ -2981,6 +3901,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 display_name = self._get_npc_field(npc, "display_name", npc_id)
                 known_name = self._get_npc_field(npc, "known_name", "unknown")
                 reference_label = self._npc_public_reference_label(npc_id, npc)
+                relationship_with_player = self._npc_relationship_with_player(npc)
                 if player_name and (
                     self._normalize_key_text(display_name) == player_name
                     or self._normalize_key_text(npc_id) == self._normalize_key_text(player_key)
@@ -2995,6 +3916,9 @@ Remember: These responses will be stitched together into a continuous story. Pri
                     "race": self._get_npc_field(npc, "race", ""),
                     "background": self._npc_public_text(npc_id, npc, self._get_npc_field(npc, "background", ""), 180),
                     "class_theme": self._npc_public_text(npc_id, npc, self._get_npc_field(npc, "class_theme", ""), 120),
+                    "party": self._get_npc_field(npc, "party", False),
+                    "relationship_with_player": relationship_with_player,
+                    "player_relationship": relationship_with_player.get("public_label", "Stranger"),
                     "known_facts": self._npc_public_facts(npc_id, npc, self._get_npc_field(npc, "known_facts", []), 5, 140),
                 }
                 if private:
@@ -3011,8 +3935,10 @@ Remember: These responses will be stitched together into a continuous story. Pri
                     entry.update({
                         "display_name": display_name,
                         "role": self._get_npc_field(npc, "title", ""),
-                        "relationship": self._get_npc_field(npc, "relationship", "neutral"),
+                        "relationship": relationship_with_player.get("public_label", "Stranger"),
+                        "relationship_with_player": relationship_with_player,
                         "trust": trust_value,
+                        "trust_label": self._get_npc_field(npc, "trust_label", "neutral"),
                         "trust_category": trust_data.get("category", "neutral"),
                         "trust_description": self._compact_text(trust_data.get("description", ""), 120),
                         "mood": mood_score,
@@ -3092,11 +4018,14 @@ Remember: These responses will be stitched together into a continuous story. Pri
             trust_value = self._get_npc_field(npc, "trust", 0)
             trust_data = get_relationship_data(trust_value)
             mood_score = self._get_npc_field(npc, "mood", 0)
+            relationship_with_player = self._npc_relationship_with_player(npc)
             relevant.append({
                 "npc_id": npc_id,
                 "name": name,
                 "race": self._get_npc_field(npc, "race", ""),
-                "relationship": self._get_npc_field(npc, "relationship", "neutral"),
+                "relationship_with_player": relationship_with_player,
+                "player_relationship": relationship_with_player.get("public_label", "Stranger"),
+                "trust_label": self._get_npc_field(npc, "trust_label", "neutral"),
                 "trust": trust_value,
                 "trust_category": trust_data.get("category", "neutral"),
                 "mood": mood_score,
@@ -3133,6 +4062,45 @@ Remember: These responses will be stitched together into a continuous story. Pri
     def _resolve_detected_npc_id(self, target: str, known_npcs: List[Dict[str, Any]]) -> Optional[str]:
         """Map detector target text to a known NPC id."""
         return self._resolve_npc_reference(target, known_npcs)
+
+    def _resolve_social_candidate_npc(self, player_input: str, context: Dict[str, Any],
+                                      turn_context: Optional[Dict[str, Any]] = None,
+                                      inferred: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Resolve the single NPC most likely involved in this turn, before deciding social intent."""
+        known_npcs = context.get("known_npcs", []) if isinstance(context.get("known_npcs"), list) else []
+        candidates: List[str] = []
+
+        def add_candidate(ref: Any):
+            resolved = self._resolve_detected_npc_id(str(ref or ""), known_npcs)
+            if resolved and resolved not in candidates:
+                candidates.append(resolved)
+
+        inferred = inferred or {}
+        add_candidate(inferred.get("target_npc") or inferred.get("npc_id"))
+
+        compact_turn_context = context.get("turn_context", {}) if isinstance(context.get("turn_context"), dict) else {}
+        active_turn_context = turn_context if isinstance(turn_context, dict) else compact_turn_context
+        involved_refs = active_turn_context.get("involved_npcs", [])
+        if not isinstance(involved_refs, list):
+            involved_refs = []
+        for ref in involved_refs:
+            add_candidate(ref)
+
+        lowered_input = self._normalize_key_text(player_input)
+        for npc in known_npcs:
+            names = [
+                npc.get("npc_id", ""),
+                npc.get("known_name", ""),
+                npc.get("reference_label", ""),
+                npc.get("name", ""),
+                npc.get("display_name", ""),
+            ]
+            for name in names:
+                name_key = self._normalize_key_text(name)
+                if name_key and name_key != "unknown" and name_key in lowered_input:
+                    add_candidate(npc.get("npc_id", ""))
+
+        return candidates[0] if len(candidates) == 1 else None
     def _npc_trust_value(self, npc_id: str) -> float:
         """Return the current player-facing trust value for an NPC."""
         npc = self.game_state.get("npcs", {}).get(npc_id, {})
@@ -3154,21 +4122,24 @@ Remember: These responses will be stitched together into a continuous story. Pri
             return 0.0
     def _build_turn_evaluation_context(self, player_input: str) -> Dict[str, Any]:
         """Context used by pre-DM evaluation prompts."""
+        scene_facts = self._compact_scene_facts_for_prompt(12, 220)
         return {
             "knowledge_priority": self._knowledge_priority_context(),
             "player_input": player_input,
             "summary_file": self._compact_text(self.conversation_manager.get_summary_file_text(), PROMPT_COMPACT_TEXT_CHARS),
             "last_4_exchanges": self._compact_recent_exchanges(PROMPT_RECENT_EXCHANGE_LIMIT),
+            "relevant_transcript_evidence": self._retrieve_relevant_transcript_evidence(player_input),
             "opening_scene": self._opening_scene_context(),
             "current_scene": self._compact_text(self._get_scene_context(), PROMPT_SCENE_CONTEXT_CHARS),
             "world_time": self._world_time_context(),
-            "scene_facts": self._compact_scene_facts_for_prompt(12, 220),
+            "scene_facts": scene_facts,
             "world_facts": self._compact_list_text(self.game_state.get("world", {}).get("facts", []), 8, 220),
             "known_npcs": self._get_known_npcs_for_prompt(),
             "location": self.game_state.get("world", {}).get("location", {}),
             "player": self._compact_player_for_prompt(),
             "player_possessions": self._compact_player_possessions_for_prompt(),
             "story_bible_excerpt": self._story_bible_excerpt(player_input, max_chars=PROMPT_STORY_BIBLE_CHARS),
+            "story_bible_lore": self._select_story_bible_lore(player_input, scene_facts=scene_facts),
             "racial_profiles": self._select_racial_profiles(),
         }
     def _skill_dc_reference_for_prompt(self) -> List[Dict[str, Any]]:
@@ -3277,6 +4248,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "knowledge_priority": self._knowledge_priority_context(),
             "campaign_summary": self._compact_text(self.conversation_manager.get_summary_file_text(), PROMPT_COMPACT_TEXT_CHARS),
             "recent_exchanges": self._compact_recent_exchanges(PROMPT_RECENT_EXCHANGE_LIMIT),
+            "relevant_transcript_evidence": self._retrieve_relevant_transcript_evidence(player_input),
             "opening_scene": self._opening_scene_context(),
             "current_scene": self._compact_text(self._get_scene_context(), PROMPT_SCENE_CONTEXT_CHARS),
             "scene_brief": self._compact_text((narrative_brief or {}).get("scene_brief", ""), PROMPT_SCENE_BRIEF_CHARS),
@@ -3289,6 +4261,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "player_possessions": self._compact_player_possessions_for_prompt(),
             "turn_context": self._compact_turn_context_for_prompt(turn_context),
             "relevant_lore": self._select_dm_lore_profiles(player_input, turn_context, scene_facts),
+            "full_story_bible": self._load_story_bible_json(),
+            "story_bible_lore": self._select_story_bible_lore(player_input, turn_context, scene_facts),
             "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=PROMPT_STORY_BIBLE_CHARS),
         }
     def _evaluate_turn_context(self, player_input: str) -> Dict[str, Any]:
@@ -3559,6 +4533,12 @@ Remember: These responses will be stitched together into a continuous story. Pri
                 max_chars=PROMPT_RUNTIME_STORY_BIBLE_CHARS,
             )
         inferred = self.api_manager._infer_social_check(context)
+        candidate_target = self._resolve_social_candidate_npc(
+            player_input,
+            context,
+            turn_context=turn_context,
+            inferred=inferred,
+        )
         social_words = [
             "talk", "speak", "say", "ask", "tell", "convince", "persuade",
             "intimidate", "threaten", "bargain", "negotiate", "lie", "deceive",
@@ -3566,10 +4546,15 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "whisper", "promise", "request", "beg", "comfort", "reassure",
             "help", "trust", "calm", "explain", "warn", "thank"
         ]
-        if not inferred.get("needs_social_check") and not any(word in player_input.lower() for word in social_words):
+        if (
+            not candidate_target
+            and not inferred.get("needs_social_check")
+            and not any(word in player_input.lower() for word in social_words)
+        ):
             return {
                 "needs_social_check": False,
                 "target_npc": None,
+                "candidate_target_npc": None,
                 "interaction_type": inferred.get("interaction_type", "appeal"),
                 "reason": inferred.get("reason", "No social check needed"),
                 "raw_detection": {"source": "local_prefilter", **inferred},
@@ -3580,7 +4565,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             temperature=MODEL_SOCIAL_DETECTION_TEMPERATURE,
         )
         known_npcs = context["known_npcs"]
-        target = detection.get("target_npc") or detection.get("npc_id") or ""
+        target = detection.get("target_npc") or detection.get("npc_id") or candidate_target or ""
         resolved_target = self._resolve_detected_npc_id(target, known_npcs)
         needs_check = bool(detection.get("needs_social_check", False)) and bool(resolved_target)
         if not needs_check:
@@ -3604,6 +4589,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
         return {
             "needs_social_check": needs_check,
             "target_npc": resolved_target,
+            "candidate_target_npc": candidate_target,
             "interaction_type": detection.get("interaction_type", "appeal"),
             "base_difficulty_class": base_dc,
             "difficulty_class": difficulty_class,
@@ -3611,8 +4597,90 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "reason": detection.get("reason", "No social check needed" if not needs_check else ""),
             "raw_detection": detection,
         }
+    def _communication_skill_reroute(self, detection: Dict[str, Any], social_check: Optional[Dict[str, Any]],
+                                     context: Dict[str, Any], turn_context: Optional[Dict[str, Any]],
+                                     player_input: str) -> Optional[Dict[str, Any]]:
+        """Convert NPC-facing communication skill detections into social checks."""
+        social_check = social_check or {}
+        target = (
+            social_check.get("target_npc")
+            or social_check.get("candidate_target_npc")
+            or self._resolve_social_candidate_npc(
+                player_input,
+                context,
+                turn_context=turn_context,
+                inferred=social_check.get("raw_detection") if isinstance(social_check.get("raw_detection"), dict) else None,
+            )
+        )
+        if not target:
+            return None
+        base_dc = self._coerce_dc_int(
+            detection.get("difficulty_class"),
+            social_check.get("base_difficulty_class") or DEFAULT_UNEVALUATED_DC,
+        )
+        base_dc = max(1, min(100, base_dc))
+        trust = self._npc_trust_value(target)
+        return {
+            "needs_social_check": True,
+            "target_npc": target,
+            "candidate_target_npc": target,
+            "interaction_type": social_check.get("interaction_type", "appeal"),
+            "base_difficulty_class": base_dc,
+            "difficulty_class": max(1, min(100, int(round(base_dc - trust)))),
+            "trust_modifier": -trust,
+            "reason": detection.get("reason") or "NPC-facing communication is handled by social_calc.",
+            "raw_detection": {
+                "source": "communication_skill_reroute",
+                "original_skill_detection": detection,
+                "prior_social_detection": social_check,
+            },
+        }
+    def _communication_fallback_for_unresolved_social(self, player_input: str, context: Dict[str, Any],
+                                                      social_check: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Use a normal communication roll when social intent has no valid tracked NPC target."""
+        if not isinstance(social_check, dict):
+            return None
+        raw_detection = social_check.get("raw_detection")
+        if not isinstance(raw_detection, dict) or not raw_detection.get("needs_social_check"):
+            return None
+        if social_check.get("target_npc") or social_check.get("candidate_target_npc"):
+            return None
+        unresolved_target = raw_detection.get("target_npc") or raw_detection.get("npc_id") or ""
+        base_dc = self._coerce_dc_int(
+            raw_detection.get("difficulty_class") or social_check.get("base_difficulty_class"),
+            DEFAULT_UNEVALUATED_DC,
+        )
+        base_dc = max(1, min(100, base_dc))
+        stats_used = self._skill_reference_stats("communication") or ["Crea", "Ins"]
+        reason = (
+            social_check.get("reason")
+            or raw_detection.get("reason")
+            or "Social pressure has no valid tracked NPC target, so it falls back to communication."
+        )
+        if unresolved_target:
+            reason = f"{reason} Unresolved target: {self._compact_text(unresolved_target, 80)}."
+        provisional_detection = {
+            "needs_skill_check": True,
+            "skill": "communication",
+            "stats_used": stats_used,
+            "difficulty_class": base_dc,
+            "reason": reason,
+            "stakes": "The addressed person or surrounding audience may accept, resist, escalate, or impose a cost.",
+        }
+        dc_evaluation = self._evaluate_dc(player_input, provisional_detection, context)
+        dc = dc_evaluation.get("final_dc", base_dc)
+        return {
+            **provisional_detection,
+            "difficulty_class": max(1, min(100, dc)),
+            "dc_evaluation": dc_evaluation,
+            "raw_detection": {
+                "source": "unresolved_social_target_communication_fallback",
+                "prior_social_detection": social_check,
+            },
+        }
     def _detect_skill_check(self, player_input: str,
-                            turn_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                            turn_context: Optional[Dict[str, Any]] = None,
+                            social_check: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Ask whether the action needs a non-social mechanical skill check."""
         context = self._build_turn_evaluation_context(player_input)
         if turn_context:
@@ -3634,6 +4702,10 @@ Remember: These responses will be stitched together into a continuous story. Pri
         if not needs_check and (detection.get("parse_error") or inferred_detection.get("needs_skill_check")):
             detection = inferred_detection
             needs_check = bool(detection.get("needs_skill_check", False))
+        if not needs_check:
+            fallback = self._communication_fallback_for_unresolved_social(player_input, context, social_check)
+            if fallback:
+                return fallback
         skill_name = self._normalize_detected_skill_name(detection.get("skill", ""))
         stats_used = detection.get("stats_used") or []
         if isinstance(stats_used, str):
@@ -3658,6 +4730,26 @@ Remember: These responses will be stitched together into a continuous story. Pri
             dc = int(float(dc))
         except (TypeError, ValueError):
             dc = DEFAULT_UNEVALUATED_DC if needs_check else 0
+        if needs_check and skill_name == "communication":
+            rerouted_social_check = self._communication_skill_reroute(
+                detection,
+                social_check,
+                context,
+                turn_context,
+                player_input,
+            )
+            if rerouted_social_check:
+                return {
+                    "needs_skill_check": False,
+                    "skill": skill_name,
+                    "stats_used": stats_used,
+                    "difficulty_class": 0,
+                    "reason": "NPC-facing communication is routed to social_calc.",
+                    "stakes": detection.get("stakes", ""),
+                    "dc_evaluation": {},
+                    "raw_detection": detection,
+                    "reroute_to_social_check": rerouted_social_check,
+                }
         dc_evaluation = {}
         if needs_check:
             dc = max(1, min(100, dc))
@@ -3912,6 +5004,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "turn_context": self._compact_turn_context_for_prompt(turn_context),
             "racial_profiles": self._select_racial_profiles(turn_context),
             "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=PROMPT_STORY_BIBLE_CHARS),
+            "story_bible_lore": self._select_story_bible_lore(player_input, turn_context, context.get("scene_facts", [])),
             "social_check": self._compact_social_check_for_prompt(social_check),
             "social_result": self._compact_social_result_for_prompt(social_result),
             "skill_check": self._compact_skill_check_for_prompt(skill_check),
@@ -3953,7 +5046,14 @@ Remember: These responses will be stitched together into a continuous story. Pri
             if profile.get("known_name") and profile.get("known_name") != "unknown"
             else profile.get("reference_label") or profile.get("display_name") or target_npc
         )
-        relationship = mechanics.get("new_relationship") or profile.get("relationship") or "neutral"
+        relationship_with_player = profile.get("relationship_with_player") if isinstance(profile.get("relationship_with_player"), dict) else {}
+        player_relationship = (
+            relationship_with_player.get("public_label")
+            or profile.get("player_relationship")
+            or profile.get("relationship")
+            or "Stranger"
+        )
+        trust_label = mechanics.get("new_relationship") or profile.get("trust_label") or "neutral"
         trust_category = mechanics.get("trust_category") or profile.get("trust_category") or get_relationship_data(profile.get("trust", 0)).get("category", "neutral")
         mood_score = (
             mechanics.get("new_mood_score")
@@ -3975,7 +5075,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             180,
         )
         sentence = (
-            f"{name}, who feels {trust_category} toward the player ({relationship}), is feeling {mood}. "
+            f"{name}, whose relationship to the player is {player_relationship}, feels {trust_category} toward the player ({trust_label}), and is feeling {mood}. "
             f"The interaction {interaction_description} {result_text}"
         )
         if margin is not None:
@@ -3984,7 +5084,9 @@ Remember: These responses will be stitched together into a continuous story. Pri
         return {
             "npc_id": target_npc,
             "name": name,
-            "relationship": relationship,
+            "relationship_with_player": relationship_with_player or {"type": "stranger", "public_label": player_relationship, "notes": ""},
+            "player_relationship": player_relationship,
+            "trust_label": trust_label,
             "trust_category": trust_category,
             "mood": mood_score,
             "mood_label": mood,
@@ -4018,20 +5120,17 @@ Remember: These responses will be stitched together into a continuous story. Pri
             npc for npc in known_profiles
             if str(npc.get("npc_id")) in active_ids
         ]
-        context = self._build_turn_evaluation_context(player_input)
-        context.update({
-            "turn_context": self._compact_turn_context_for_prompt(turn_context),
+        context = {
+            "player_input": player_input,
             "narrative_brief": narrative_brief or {},
             "active_npc_profiles": active_profiles,
             "npc_social_context": self._npc_social_context_for_prompt(active_profiles, social_check, social_result),
             "story_context": self._build_shared_story_context(player_input, turn_context, narrative_brief),
-            "racial_profiles": self._select_racial_profiles(turn_context),
-            "story_bible_excerpt": self._story_bible_excerpt(player_input, turn_context, max_chars=PROMPT_RUNTIME_STORY_BIBLE_CHARS),
             "social_check": self._compact_social_check_for_prompt(social_check),
             "social_result": self._compact_social_result_for_prompt(social_result),
             "skill_check": self._compact_skill_check_for_prompt(skill_check),
             "skill_result": self._compact_skill_result_for_prompt(skill_result),
-        })
+        }
         review = self.api_manager.call_api(
             "npc_action_review",
             context,
@@ -4045,6 +5144,110 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "npc_actions": npc_actions,
             "notes": review.get("notes", ""),
         }
+
+    def _memory_update_facts(self, value: Any, max_items: int = TURN_MEMORY_UPDATE_MAX_FACTS) -> List[str]:
+        """Normalize model memory-update fact lists into short strings."""
+        if isinstance(value, (str, int, float, bool)):
+            values = [value]
+        elif isinstance(value, list):
+            values = value
+        elif isinstance(value, dict):
+            values = [
+                value.get(key)
+                for key in ("fact", "text", "summary", "value", "note")
+                if value.get(key) is not None
+            ]
+        else:
+            values = []
+        facts = []
+        seen = set()
+        for value in values:
+            text = self._compact_text(value, NPC_FACT_MAX_CHARS)
+            if not text:
+                continue
+            key = self._normalize_key_text(text)
+            if key in seen:
+                continue
+            seen.add(key)
+            facts.append(text)
+            if len(facts) >= max_items:
+                break
+        return facts
+
+    def _apply_turn_memory_updates(self, memory_updates: Any) -> Dict[str, Any]:
+        """Apply validated durable memory extracted by the turn summarizer."""
+        result = {
+            "npc_facts_added": 0,
+            "scene_facts_added": 0,
+            "world_facts_added": 0,
+            "skipped": [],
+        }
+        if not isinstance(memory_updates, dict):
+            self._last_turn_memory_result = result
+            return result
+
+        npc_updates = memory_updates.get("npc_facts") or memory_updates.get("npcs") or []
+        if isinstance(npc_updates, dict):
+            npc_updates = [
+                {"npc_id": npc_id, "facts": facts}
+                for npc_id, facts in npc_updates.items()
+            ]
+        if not isinstance(npc_updates, list):
+            npc_updates = []
+        for update in npc_updates[:TURN_MEMORY_UPDATE_MAX_FACTS]:
+            if not isinstance(update, dict):
+                continue
+            npc_ref = (
+                update.get("npc_id")
+                or update.get("target_npc")
+                or update.get("name")
+                or update.get("known_name")
+                or update.get("display_name")
+            )
+            npc_id = self._resolve_npc_reference(str(npc_ref or ""))
+            if not npc_id or npc_id not in self.game_state.get("npcs", {}):
+                if npc_ref:
+                    result["skipped"].append(f"unknown_npc:{npc_ref}")
+                continue
+            facts = update.get("facts")
+            if facts is None:
+                facts = update.get("known_facts") or update.get("fact")
+            npc = self.game_state["npcs"][npc_id]
+            before = list(self._npc_identity(npc).get("known_facts", []))
+            for fact in self._memory_update_facts(facts):
+                clean = self._sanitize_known_fact_text(fact)
+                self._append_npc_known_fact(npc, clean or f"memory: {fact}")
+            after = list(self._npc_identity(npc).get("known_facts", []))
+            result["npc_facts_added"] += len([fact for fact in after if fact not in before])
+
+        scene_updates = memory_updates.get("scene_facts") or memory_updates.get("current_scene") or {}
+        scene_entries = self._iter_scene_fact_entries(scene_updates)
+        if scene_entries:
+            memory = self._normalize_scene_facts()
+            for scope, key, text in scene_entries[:TURN_MEMORY_UPDATE_MAX_FACTS]:
+                before = copy.deepcopy(memory)
+                self._upsert_scene_fact(memory, scope, key, text)
+                if memory != before:
+                    result["scene_facts_added"] += 1
+            self.game_state.setdefault("scenario", {})["scene_facts"] = memory
+
+        world_updates = memory_updates.get("world_facts") or memory_updates.get("facts") or []
+        for fact in self._memory_update_facts(world_updates):
+            before = list(self.game_state.setdefault("world", {}).setdefault("facts", []))
+            self._apply_note_fact({"action": "note_fact", "command": {"fact": fact}})
+            after = self.game_state.setdefault("world", {}).setdefault("facts", [])
+            if after != before:
+                result["world_facts_added"] += 1
+
+        contradictions = memory_updates.get("contradictions")
+        if isinstance(contradictions, list) and contradictions:
+            result["contradictions"] = [
+                self._compact_text(item, 180)
+                for item in contradictions[:TURN_MEMORY_UPDATE_MAX_FACTS]
+            ]
+        self._last_turn_memory_result = result
+        return result
+
     def _summarize_turn(self, player_input: str, narrative: str, command: Dict[str, Any],
                         mechanical_result: Dict[str, Any], social_check: Dict[str, Any],
                         social_result: Optional[Dict[str, Any]],
@@ -4068,6 +5271,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "skill_check": self._compact_skill_check_for_prompt(skill_check),
             "skill_result": self._compact_skill_result_for_prompt(skill_result),
             "scene_result": self._compact_text((narrative_brief or {}).get("scene_brief", ""), 220),
+            "relevant_transcript_evidence": self._retrieve_relevant_transcript_evidence(player_input),
         }
         summary_response = self.api_manager.call_api(
             "turn_summary",
@@ -4076,6 +5280,7 @@ Remember: These responses will be stitched together into a continuous story. Pri
             max_tokens=MODEL_TURN_SUMMARY_MAX_TOKENS,
         )
         summary = summary_response.get("summary") or summary_response.get("narrative") or ""
+        self._apply_turn_memory_updates(summary_response.get("memory_updates", {}))
         self.conversation_manager.append_summary_line(summary)
         return " ".join(summary.split()).strip()
     def _format_precomputed_context(self, social_check: Optional[Dict[str, Any]],
@@ -4202,7 +5407,8 @@ Remember: These responses will be stitched together into a continuous story. Pri
         combat_status = 'ACTIVE' if combat_active else 'inactive'
         player_hp = self.game_state.get('player', {}).get('derived', {}).get('HP', '?')
         player_mp = self.game_state.get('player', {}).get('derived', {}).get('MP', '?')
-        location = self.game_state.get('world', {}).get('location', {}).get('settlement', 'unknown')
+        world_location = self._world_location_context()
+        location = self._format_world_location_for_prompt()
         scene_fact_map = self._compact_scene_fact_map_for_prompt(10, 220)
         scene_facts = [
             fact
@@ -4226,11 +5432,14 @@ Remember: These responses will be stitched together into a continuous story. Pri
         )
         known_npcs = self._get_known_npcs_for_prompt()
         lore_profiles = self._select_dm_lore_profiles(player_input, turn_context, scene_facts)
+        full_story_bible = self._load_story_bible_json()
+        story_bible_lore = self._select_story_bible_lore(player_input, turn_context, scene_facts)
         recent_exchanges = self._compact_recent_exchanges(
             PROMPT_DM_RECENT_EXCHANGE_LIMIT,
             max_player_chars=PROMPT_DM_RECENT_PLAYER_CHARS,
             max_dm_chars=PROMPT_DM_RECENT_DM_CHARS,
         )
+        transcript_evidence = self._retrieve_relevant_transcript_evidence(player_input)
         summary = self._compact_text(self.conversation_manager.get_summary_file_text(), PROMPT_DM_SUMMARY_CHARS)
         opening_scene = self._opening_scene_context()
         story_bible_excerpt = self._story_bible_excerpt(
@@ -4241,8 +5450,19 @@ Remember: These responses will be stitched together into a continuous story. Pri
         player_input_json = json.dumps(player_input)
         sections = []
         sections.append(f"KNOWLEDGE PRIORITY:\n{self._format_knowledge_priority_for_prompt()}")
+        if full_story_bible:
+            sections.append(
+                "FULL CANONICAL STORY BIBLE:\n"
+                f"{json.dumps(full_story_bible, indent=2)}"
+            )
         if story_bible_excerpt:
             sections.append(f"CANONICAL STORY BIBLE EXCERPT:\n{story_bible_excerpt}")
+        if story_bible_lore:
+            sections.append(
+                "CANONICAL RELEVANT STORY BIBLE:\n"
+                "These structured facts are mandatory when relevant to the current NPC, scene, or player action.\n"
+                f"{json.dumps(story_bible_lore, indent=2)}"
+            )
         if opening_scene:
             sections.append(
                 "OPENING SCENE / CAMPAIGN SEED:\n"
@@ -4274,17 +5494,30 @@ Remember: These responses will be stitched together into a continuous story. Pri
             "Ignore summary, transcript, or scene facts that imply a conflicting time of day. "
             "Do not narrate dawn, dusk, evening, night, moonlight, sunrise, or sunset unless the saved clock supports it or you emit a time_update command."
         )
+        sections.append(
+            "WORLD LOCATION:\n"
+            f"{json.dumps(world_location or {'status': 'unknown'}, indent=2)}\n"
+            "This saved location is the authoritative physical place for the player. "
+            "Ignore opening-scene, summary, transcript, or stale scene facts that imply a conflicting location unless the JSON includes location_update."
+        )
         if known_npcs:
             sections.append(
                 "KNOWN RECURRING NPCS:\n"
-                "Use these npc_id values exactly when emitting npc_update commands.\n"
+                "Use these npc_id values exactly when emitting npc_update, party_update, or relationship_update commands.\n"
                 "known_name is player-facing; if it is unknown, refer to reference_label rather than inventing or using a hidden true name.\n"
+                "relationship_with_player is the objective social role/bond, separate from trust and mood.\n"
                 f"{json.dumps(known_npcs, indent=2)}"
             )
         if summary:
             sections.append(f"CAMPAIGN SUMMARY:\n{summary}")
         if recent_exchanges:
             sections.append(f"RECENT EXCHANGES:\n{json.dumps(recent_exchanges, indent=2)}")
+        if transcript_evidence:
+            sections.append(
+                "RELEVANT TRANSCRIPT EVIDENCE:\n"
+                "Continuity aid from earlier story_transcript turns. Use direct prior dialogue or observed facts here to avoid contradicting established events; do not treat it as stronger than Story Bible or explicit saved game_state facts.\n"
+                f"{json.dumps(transcript_evidence, indent=2)}"
+            )
         if precomputed_context != "{}":
             sections.append(
                 "PRE-DM CONSTRAINTS:\n"
@@ -4317,6 +5550,7 @@ DM STYLE:
 NPC MEMORY RULES:
 - npc_update.known_facts must be concise current facts, not full narration.
 - Do not emit npc_update fields for mood, mood_score, trust, trust_level, relationship, or emotional_response; Python mechanics own those values.
+- Use relationship_update, not npc_update.relationship, when the objective relationship role with the player changes.
 - Keep each NPC fact under one short sentence and avoid "you/your" phrasing.
 - Prefer current status, location, injuries, restraints, special marks, behavior, identity, or relationship changes.
 SCENE MEMORY RULES:
@@ -4325,6 +5559,10 @@ SCENE MEMORY RULES:
 - Put facts about the immediate location in set_facts.local. Put facts that should follow the player after leaving in set_facts.carryover.
 - If a fact becomes false, include its key or exact text in remove_facts.
 - On a true scene transition, long travel, sleep, or leaving a location, set transition true or clear_local_facts true; preserve carryover facts that still apply.
+LOCATION MEMORY RULES:
+- WORLD LOCATION is the player's saved physical location; do not pull the player back to the opening forest or caravan unless the current action actually returns there.
+- If the player enters, leaves, travels to, rents, sleeps in, searches, or otherwise establishes a new physical place, include location_update with the most specific known fields.
+- Use concise fields such as settlement, region, area, building, room, site, or coordinates. Do not store full narration in location fields.
 RESPOND WITH:
 1. Narrative description of what happens.
 2. At the very end, exactly one JSON command block with mechanical actions and durable state updates.
@@ -4334,7 +5572,10 @@ Use a single command for one change, or multi for several:
   "action": "multi",
   "commands": [
     {{"action": "scene_update", "command": {{"current_scene": "What is physically true now.", "set_facts": {{"local": {{"active_threats": "No active enemies are visible here."}}, "carryover": {{"companion_condition": "Layla remains wounded but stable."}}}}, "remove_facts": ["obsolete_fact_key"], "transition": false}}}},
+    {{"action": "location_update", "command": {{"location": {{"settlement": "Veldros", "building": "Rusty Tankard", "room": "rented room"}}}}}},
     {{"action": "npc_update", "command": {{"npc_id": "existing_or_new_npc_id", "updates": {{"status": "freed", "known_facts": ["Durable NPC fact."]}}}}}},
+    {{"action": "party_update", "command": {{"npc_id": "existing_npc_id", "action": "join", "reason": "The NPC is now traveling with the player."}}}},
+    {{"action": "relationship_update", "command": {{"npc_id": "existing_npc_id", "type": "traveling companion", "public_label": "Traveling Companion", "reason": "The NPC has agreed to travel with the player."}}}},
     {{"action": "inventory", "command": {{"action": "add", "item_data": {{"archetype": "Iron Key", "tags": ["key"], "hp": 100, "max_hp": 100}}, "quantity": 1, "condition": "worn"}}}},
     {{"action": "currency", "command": {{"copper": 5, "reason": "ordinary coins found"}}}},
     {{"action": "note_fact", "command": {{"fact": "A durable world or story fact the game must remember."}}}},
@@ -4342,11 +5583,14 @@ Use a single command for one change, or multi for several:
   ]
 }}
 ```
-Available command actions: narrative, scene_update, location_update, time_update, npc_update, note_fact, inventory, currency, quest, spell_create, spell_study, spell_cast, combat_start, combat_action, combat_end, skill_check.
+Available command actions: narrative, scene_update, location_update, time_update, npc_update, party_update, relationship_update, note_fact, inventory, currency, quest, spell_create, spell_study, spell_cast, combat_start, combat_action, combat_end, skill_check.
 If your narrative names, describes, injures, moves, or changes an NPC, include an npc_update for that NPC in the JSON. If a name is revealed to the player, include that newly revealed name in updates.name. Keep the npc_id stable: use an existing npc_id, or a descriptive unnamed id for a new unnamed NPC. Do not switch an existing unnamed npc_id to a name-based id after revelation.
+If your narrative says an NPC joins, leaves, starts traveling with, is recruited by, is dismissed from, or parts from the player, include party_update for that NPC. Use action "join" or "leave"; do not write party membership through npc_update.
+If the story changes an NPC's objective relationship role with the player, include relationship_update. Use type values such as {", ".join(PLAYER_RELATIONSHIP_TYPE_EXAMPLES)}. Do not include a status field; former relationships should be expressed as type values such as "former lover", "former wife", "former husband", or "former traveling companion".
 If your narrative says the player finds, takes, receives, buys, loots, carries, or keeps an item, include an inventory add command for that item in the JSON.
 Use currency for ordinary spendable coins or money: copper, silver, gold, and platinum should update the wallet, not inventory. Only use inventory for unusual physical coins such as foreign, cursed, marked, sealed, collectible, or counterfeit coins.
 Use WORLD TIME as the current clock. If the player waits, travels, searches at length, rests, crafts, studies, or if narration implies minutes/hours passing or a new time of day, include time_update with advance_minutes. Do not use scene_update alone to imply clock movement.
+Use WORLD LOCATION as the current physical location. If narration changes where the player is, include location_update; do not use scene_update alone to imply physical relocation.
 Do not emit social_interaction for the current player action. Use skill_check only for additional checks that were not already precomputed.
 ONLY output the narrative + one JSON block. No extra text."""
         
@@ -4355,17 +5599,70 @@ ONLY output the narrative + one JSON block. No extra text."""
         """Return the nested command payload when present."""
         payload = command.get("command", {})
         return payload if isinstance(payload, dict) else {}
+    def _decay_npc_moods_for_elapsed_hours(self, hours_crossed: int) -> Dict[str, Any]:
+        """Move short-term NPC mood scores toward neutral after clock-hour changes."""
+        hours = max(0, int(hours_crossed))
+        rate = max(0.0, float(NPC_MOOD_DECAY_PER_HOUR))
+        summary = {
+            "hours_crossed": hours,
+            "rate": rate,
+            "total_decay": round(hours * rate, 2),
+            "updated_npcs": 0,
+            "changes": [],
+        }
+        if hours <= 0 or rate <= 0:
+            return summary
+        decay = hours * rate
+        npcs = self.game_state.get("npcs", {})
+        if not isinstance(npcs, dict):
+            return summary
+        for npc_id, npc in npcs.items():
+            if not isinstance(npc, dict):
+                continue
+            identity = npc.get("identity")
+            if not isinstance(identity, dict):
+                continue
+            if "mood" not in identity and "mood_score" not in identity:
+                continue
+            old_mood = get_mood_score(npc, 0.0)
+            if old_mood > 0:
+                new_mood = max(0.0, old_mood - decay)
+            elif old_mood < 0:
+                new_mood = min(0.0, old_mood + decay)
+            else:
+                new_mood = 0.0
+            new_mood = round(new_mood, 2)
+            if new_mood != old_mood or not isinstance(identity.get("mood"), (int, float)):
+                identity["mood"] = new_mood
+                identity.pop("mood_score", None)
+                summary["updated_npcs"] += 1
+                summary["changes"].append({
+                    "npc_id": str(npc_id),
+                    "from": old_mood,
+                    "to": new_mood,
+                })
+        return summary
+
     def _advance_world_time(self, advance_minutes: int, reason: str = "") -> Dict[str, Any]:
         """Advance the persistent world clock by a bounded number of minutes."""
         minutes = max(0, int(advance_minutes))
         if minutes <= 0:
-            return {"success": True, "message": "No time advanced", "advanced_minutes": 0, "time": self._world_time_context()}
+            return {
+                "success": True,
+                "message": "No time advanced",
+                "advanced_minutes": 0,
+                "time": self._world_time_context(),
+                "mood_decay": self._decay_npc_moods_for_elapsed_hours(0),
+            }
         time_state = self._world_time_context()
+        old_abs_hour = ((time_state["day"] - 1) * 24) + time_state["hour"]
         total = ((time_state["day"] - 1) * 1440) + (time_state["hour"] * 60) + time_state["minute"] + minutes
         new_day = (total // 1440) + 1
         minute_of_day = total % 1440
         new_hour = minute_of_day // 60
         new_minute = minute_of_day % 60
+        new_abs_hour = ((new_day - 1) * 24) + new_hour
+        mood_decay = self._decay_npc_moods_for_elapsed_hours(max(0, new_abs_hour - old_abs_hour))
         world_time = self.game_state.setdefault("world", {}).setdefault("time", {})
         world_time.update({
             "day": new_day,
@@ -4382,6 +5679,7 @@ ONLY output the narrative + one JSON block. No extra text."""
             "message": f"Advanced world time by {minutes} minute(s)",
             "advanced_minutes": minutes,
             "time": self._world_time_context(),
+            "mood_decay": mood_decay,
         }
     def _apply_time_update(self, command: Dict[str, Any]) -> Dict[str, Any]:
         """Persist deliberate DM-declared time passage."""
@@ -4538,6 +5836,13 @@ ONLY output the narrative + one JSON block. No extra text."""
         current_scene = payload.get("current_scene") or payload.get("scene") or payload.get("description")
         if current_scene:
             scenario["current_scene"] = str(current_scene)
+        location_update_result = None
+        location = payload.get("location") or payload.get("world_location") or payload.get("current_location")
+        if isinstance(location, dict):
+            location_update_result = self._apply_location_update({
+                "action": "location_update",
+                "command": {"location": location},
+            })
         memory = self._normalize_scene_facts()
         if command_flag("transition") or command_flag("clear_local_facts"):
             memory["local"] = {}
@@ -4571,7 +5876,7 @@ ONLY output the narrative + one JSON block. No extra text."""
                 self._upsert_scene_fact(memory, scope, key, text)
                 added += 1
         scenario["scene_facts"] = memory
-        return {
+        result = {
             "success": True,
             "message": "Scene updated",
             "current_scene": scenario.get("current_scene", ""),
@@ -4580,6 +5885,9 @@ ONLY output the narrative + one JSON block. No extra text."""
             "local_fact_count": len(memory.get("local", {})),
             "carryover_fact_count": len(memory.get("carryover", {})),
         }
+        if location_update_result:
+            result["location_update"] = location_update_result
+        return result
     def _apply_location_update(self, command: Dict[str, Any]) -> Dict[str, Any]:
         """Persist the player's current location."""
         payload = self._command_payload(command)
@@ -4675,6 +5983,154 @@ ONLY output the narrative + one JSON block. No extra text."""
             "updated_fields": updated_fields,
             "ignored_fields": ignored_fields,
         }
+    def _parse_party_membership(self, payload: Dict[str, Any]) -> Optional[bool]:
+        """Return requested party membership, or None when the command is ambiguous."""
+        for field in ("party", "party_member", "is_party_member", "member", "in_party", "joined"):
+            if field in payload:
+                return self._coerce_bool(payload.get(field), False)
+        action = self._normalize_key_text(
+            payload.get("action")
+            or payload.get("status")
+            or payload.get("membership")
+            or payload.get("state")
+        )
+        if action in {"join", "joins", "joined", "add", "added", "recruit", "recruited", "with party", "in party"}:
+            return True
+        if action in {"leave", "leaves", "left", "remove", "removed", "depart", "departed", "dismiss", "dismissed", "not in party"}:
+            return False
+        return None
+
+    def _apply_party_update(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Set an NPC's party membership flag from a dedicated DM command."""
+        payload = self._command_payload(command)
+        npc_ref = (
+            payload.get("npc_id")
+            or payload.get("target_npc")
+            or payload.get("name")
+            or payload.get("known_name")
+        )
+        if not npc_ref:
+            return {"success": False, "message": "party_update requires npc_id or target_npc"}
+        is_party = self._parse_party_membership(payload)
+        if is_party is None:
+            return {"success": False, "message": "party_update requires join/leave action or party boolean"}
+
+        updates = {}
+        for name_field in ("name", "known_name", "display_name"):
+            if payload.get(name_field) not in ("", None, [], {}):
+                updates[name_field] = payload.get(name_field)
+        npc_id = (
+            self._resolve_npc_reference(str(npc_ref))
+            or self._ensure_npc_for_interaction(str(npc_ref), updates=updates)
+        )
+        if not npc_id:
+            return {"success": False, "message": f"Could not resolve NPC for party update: {npc_ref}"}
+        npcs = self.game_state.setdefault("npcs", {})
+        if npc_id not in npcs:
+            npcs[npc_id] = self._make_template_npc(npc_id, {"npc_id": npc_id, "aliases": [str(npc_ref)]})
+
+        npc = npcs[npc_id]
+        self._set_npc_field(npc, "party", is_party)
+        identity = self._npc_identity(npc)
+        party_role = payload.get("party_role") or payload.get("role")
+        if party_role not in ("", None, [], {}):
+            identity["party_role"] = self._compact_text(party_role, 80)
+        reason = self._compact_text(payload.get("reason", ""), 120)
+        current_relationship = self._npc_relationship_with_player(npc)
+        current_type = current_relationship.get("type", "stranger")
+        if is_party:
+            if current_type in {"", "stranger", "acquaintance"} or "companion" in current_type:
+                self._set_npc_field(npc, "relationship_with_player", {
+                    "type": "traveling companion",
+                    "public_label": "Traveling Companion",
+                    "notes": reason or "Traveling with the player.",
+                })
+        elif "companion" in current_type:
+            self._set_npc_field(npc, "relationship_with_player", {
+                "type": "former traveling companion",
+                "public_label": "Former Traveling Companion",
+                "notes": reason or "No longer traveling with the player.",
+            })
+        fact = payload.get("known_fact") or payload.get("fact")
+        if fact in ("", None, [], {}):
+            fact = f"party: {'active traveling companion' if is_party else 'not an active traveling companion'}"
+        self._append_npc_known_fact(npc, fact)
+        self._ensure_npc_name_fields(npc_id, npc)
+        self._normalize_npc_records()
+        resolved_id = self._resolve_npc_reference(str(npc_ref)) or npc_id
+        return {
+            "success": True,
+            "message": f"{'Added' if is_party else 'Removed'} {resolved_id} {'to' if is_party else 'from'} the party",
+            "npc_id": resolved_id,
+            "party": is_party,
+            "reason": reason,
+            "relationship_with_player": self._npc_relationship_with_player(npc),
+            "updated_fields": ["identity.party", "identity.party_member", "identity.relationship_with_player"],
+        }
+
+    def _apply_relationship_update(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Set an NPC's objective relationship role/bond with the player."""
+        payload = self._command_payload(command)
+        npc_ref = (
+            payload.get("npc_id")
+            or payload.get("target_npc")
+            or payload.get("name")
+            or payload.get("known_name")
+        )
+        if not npc_ref:
+            return {"success": False, "message": "relationship_update requires npc_id or target_npc"}
+
+        raw_relationship_value = payload.get("relationship_with_player")
+        relationship_value = raw_relationship_value
+        if not isinstance(relationship_value, dict):
+            relationship_value = {
+                "type": (
+                    raw_relationship_value
+                    or payload.get("type")
+                    or payload.get("relationship_type")
+                    or payload.get("relationship_role")
+                    or payload.get("relationship")
+                    or payload.get("role")
+                ),
+                "public_label": payload.get("public_label") or payload.get("label"),
+                "notes": payload.get("notes") or payload.get("reason") or "",
+            }
+        requested_type = relationship_value.get("type") if isinstance(relationship_value, dict) else relationship_value
+        if requested_type in ("", None, [], {}):
+            return {"success": False, "message": "relationship_update requires a relationship type"}
+
+        updates = {}
+        for name_field in ("name", "known_name", "display_name"):
+            if payload.get(name_field) not in ("", None, [], {}):
+                updates[name_field] = payload.get(name_field)
+        npc_id = (
+            self._resolve_npc_reference(str(npc_ref))
+            or self._ensure_npc_for_interaction(str(npc_ref), updates=updates)
+        )
+        if not npc_id:
+            return {"success": False, "message": f"Could not resolve NPC for relationship update: {npc_ref}"}
+
+        npcs = self.game_state.setdefault("npcs", {})
+        if npc_id not in npcs:
+            npcs[npc_id] = self._make_template_npc(npc_id, {"npc_id": npc_id, "aliases": [str(npc_ref)]})
+
+        npc = npcs[npc_id]
+        relationship = self._normalize_relationship_with_player(relationship_value)
+        self._set_npc_field(npc, "relationship_with_player", relationship)
+        fact = payload.get("known_fact") or payload.get("fact")
+        if fact in ("", None, [], {}):
+            fact = f"relationship: {relationship.get('public_label') or relationship.get('type')}"
+        self._append_npc_known_fact(npc, fact)
+        self._ensure_npc_name_fields(npc_id, npc)
+        self._normalize_npc_records()
+        resolved_id = self._resolve_npc_reference(str(npc_ref)) or npc_id
+        return {
+            "success": True,
+            "message": f"Updated {resolved_id} relationship with player to {relationship['public_label']}",
+            "npc_id": resolved_id,
+            "relationship_with_player": relationship,
+            "updated_fields": ["identity.relationship_with_player"],
+        }
     def _reload_game_state_after_external_update(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """Refresh self.game_state after tools that mutate the save file directly."""
         if result.get("success"):
@@ -4724,7 +6180,7 @@ ONLY output the narrative + one JSON block. No extra text."""
         for item in self._iter_command_entries(command):
             action = item.get("action", "").lower()
             payload = self._command_payload(item)
-            if action in {"npc_update", "npc_state", "social_interaction"}:
+            if action in {"npc_update", "npc_state", "social_interaction", "relationship_update", "player_relationship_update"}:
                 refs.extend([
                     payload.get("npc_id"),
                     payload.get("target_npc"),
@@ -4770,6 +6226,10 @@ ONLY output the narrative + one JSON block. No extra text."""
             return self._apply_note_fact(command)
         if action in {"npc_update", "npc_state"}:
             return self._apply_npc_update(command)
+        if action in {"party_update", "party"}:
+            return self._apply_party_update(command)
+        if action in {"relationship_update", "player_relationship_update"}:
+            return self._apply_relationship_update(command)
         if action == "skill_check":
             payload = self._command_payload(command)
             stats_used = payload.get("stats_used") or []
@@ -4874,6 +6334,9 @@ ONLY output the narrative + one JSON block. No extra text."""
     def process_player_action(self, player_input: str) -> Dict:
         """Process a player action and return the result."""
         self._load_game_state()  # Refresh game state
+        dm_override = self._extract_dm_override(player_input)
+        if dm_override is not None:
+            return self._process_dm_override(player_input, dm_override)
         ooc_question = self._extract_ooc_question(player_input)
         if ooc_question:
             return self._process_ooc_question(player_input, ooc_question)
@@ -4895,7 +6358,22 @@ ONLY output the narrative + one JSON block. No extra text."""
                 turn_context=turn_context,
                 difficulty_class=social_check.get("difficulty_class"),
             )
-        skill_check = self._detect_skill_check(player_input, turn_context)
+        skill_check = self._detect_skill_check(player_input, turn_context, social_check=social_check)
+        if skill_check.get("reroute_to_social_check") and not social_result:
+            social_check = skill_check["reroute_to_social_check"]
+            social_target = self._ensure_npc_for_interaction(
+                social_check.get("target_npc"),
+                player_input=player_input,
+            )
+            if social_target:
+                social_check["target_npc"] = social_target
+            social_result = self.process_social_interaction(
+                player_input=player_input,
+                target_npc=social_check["target_npc"],
+                interaction_type=social_check.get("interaction_type", "appeal"),
+                turn_context=turn_context,
+                difficulty_class=social_check.get("difficulty_class"),
+            )
         skill_result = self._resolve_skill_check(skill_check)
         narrative_brief = self._build_narrative_brief(
             player_input,
@@ -5260,9 +6738,48 @@ ONLY output the narrative + one JSON block. No extra text."""
     def get_combat_map(self) -> Dict:
         """Get the current combat map."""
         return get_current_map(self.combat.state) if self.combat.state.get("active") else {"map_grid": "No active map", "legend": "No legend"}
+    def _npc_api_record(self, npc_id: str, npc: Dict[str, Any]) -> Dict[str, Any]:
+        """Return an NPC record with flat UI fields while preserving the raw save data."""
+        record = copy.deepcopy(npc)
+        known_name = self._get_npc_field(npc, "known_name", "unknown")
+        public_name = (
+            self._compact_text(known_name, 80)
+            if self._is_learned_npc_name(known_name, npc_id)
+            else self._npc_public_reference_label(npc_id, npc)
+        )
+        mood_score = self._get_npc_field(npc, "mood", 0)
+        relationship_with_player = self._npc_relationship_with_player(npc)
+        trust_label = self._get_npc_field(npc, "trust_label", "neutral")
+        record.update({
+            "npc_id": npc_id,
+            "id": npc_id,
+            "name": public_name,
+            "display_name": self._get_npc_field(npc, "display_name", public_name),
+            "known_name": known_name if self._is_learned_npc_name(known_name, npc_id) else "unknown",
+            "gender": self._get_npc_field(npc, "gender", ""),
+            "race": self._get_npc_field(npc, "race", ""),
+            "role": self._get_npc_field(npc, "party_role", "") or self._get_npc_field(npc, "title", "") or "Companion",
+            "relationship": relationship_with_player.get("public_label", "Stranger"),
+            "relationship_with_player": relationship_with_player,
+            "trust_label": trust_label,
+            "trust": self._get_npc_field(npc, "trust", 0),
+            "mood": mood_score,
+            "mood_label": get_mood_label(mood_score),
+            "location": self._get_npc_field(npc, "location", ""),
+            "party": self._get_npc_field(npc, "party", False),
+        })
+        return record
+
     def get_npcs(self) -> List[Dict]:
         """Get all NPCs."""
-        return list(self.game_state.get("npcs", {}).values())
+        npcs = self.game_state.get("npcs", {})
+        if not isinstance(npcs, dict):
+            return []
+        return [
+            self._npc_api_record(npc_id, npc)
+            for npc_id, npc in npcs.items()
+            if isinstance(npc, dict)
+        ]
     def get_quests(self) -> List[Dict]:
         """Get all quests."""
         quests = self.game_state.get("quests", {})

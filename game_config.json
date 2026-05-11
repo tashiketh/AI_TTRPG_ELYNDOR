@@ -27,7 +27,7 @@
   },
   "npc_memory": {
     "max_fact_count": {
-      "value": 8,
+      "value": 12,
       "default": 8,
       "note": "Maximum concise known_facts retained per NPC after categorization and stale-fact replacement.",
       "used_by": [
@@ -36,11 +36,20 @@
       ]
     },
     "max_fact_chars": {
-      "value": 180,
+      "value": 240,
       "default": 180,
       "note": "Maximum characters retained for one NPC known fact.",
       "used_by": [
         "core.game_engine.GameEngine._sanitize_known_fact_text"
+      ]
+    },
+    "turn_memory_update_max_facts": {
+      "value": 6,
+      "default": 6,
+      "note": "Maximum NPC, scene, world, or contradiction facts accepted from one turn_summary memory_updates response.",
+      "used_by": [
+        "core.game_engine.GameEngine._memory_update_facts",
+        "core.game_engine.GameEngine._apply_turn_memory_updates"
       ]
     }
   },
@@ -76,6 +85,15 @@
       "note": "Multiplier applied to a social roll margin before updating the NPC identity.mood number. The per-roll mood delta is still capped to +/-10, and total mood is capped to +/-30.",
       "used_by": [
         "core.social_calc.resolve_social_interaction"
+      ]
+    },
+    "mood_decay_per_hour": {
+      "value": 1.0,
+      "default": 1.0,
+      "note": "Amount each NPC identity.mood moves toward zero for every world-clock hour boundary crossed.",
+      "used_by": [
+        "core.game_engine.GameEngine._decay_npc_moods_for_elapsed_hours",
+        "core.game_engine.GameEngine._advance_world_time"
       ]
     }
   },
@@ -113,7 +131,7 @@
   },
   "api": {
     "call_delay_seconds": {
-      "value": 1.2,
+      "value": 0.4,
       "default": 1.2,
       "note": "Delay before live API calls. API_CALL_DELAY_SECONDS environment variable still overrides this.",
       "used_by": [
@@ -122,7 +140,7 @@
       ]
     },
     "live_timeout_seconds": {
-      "value": 30,
+      "value": 60,
       "default": 30,
       "note": "HTTP timeout for structured APIManager chat-completion calls.",
       "used_by": [
@@ -130,7 +148,7 @@
       ]
     },
     "dm_timeout_seconds": {
-      "value": 40,
+      "value": 60,
       "default": 40,
       "note": "HTTP timeout for the direct DM narration call.",
       "used_by": [
@@ -285,9 +303,9 @@
       ]
     },
     "turn_summary_max_tokens": {
-      "value": 250,
-      "default": 250,
-      "note": "Maximum response tokens for one-line turn summary generation.",
+      "value": 650,
+      "default": 650,
+      "note": "Maximum response tokens for turn summary generation plus optional durable memory_updates extraction.",
       "used_by": [
         "core.game_engine.GameEngine._summarize_turn"
       ]
@@ -506,6 +524,44 @@
       "note": "Character cap for campaign summary in the final DM prompt.",
       "used_by": [
         "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "transcript_retrieval_max_snippets": {
+      "value": 3,
+      "default": 3,
+      "note": "Maximum locally retrieved story_transcript snippets included as continuity evidence for a turn.",
+      "used_by": [
+        "core.game_engine.GameEngine._retrieve_relevant_transcript_evidence",
+        "core.game_engine.GameEngine._build_turn_evaluation_context",
+        "core.game_engine.GameEngine._build_shared_story_context",
+        "core.game_engine.GameEngine._build_dm_context"
+      ]
+    },
+    "transcript_retrieval_max_chars": {
+      "value": 260,
+      "default": 260,
+      "note": "Character cap for each locally retrieved transcript evidence excerpt.",
+      "used_by": [
+        "core.game_engine.GameEngine._transcript_evidence_excerpt",
+        "core.game_engine.GameEngine._retrieve_relevant_transcript_evidence"
+      ]
+    },
+    "transcript_retrieval_max_turns": {
+      "value": 80,
+      "default": 80,
+      "note": "Maximum prior story_transcript turns searched by the local continuity retrieval step.",
+      "used_by": [
+        "core.game_engine.ConversationManager.get_transcript_entries",
+        "core.game_engine.GameEngine._retrieve_relevant_transcript_evidence"
+      ]
+    },
+    "transcript_retrieval_term_limit": {
+      "value": 12,
+      "default": 12,
+      "note": "Maximum extracted player-input terms used by local transcript retrieval.",
+      "used_by": [
+        "core.game_engine.GameEngine._transcript_retrieval_terms",
+        "core.game_engine.GameEngine._retrieve_relevant_transcript_evidence"
       ]
     }
   },

@@ -35,6 +35,13 @@ class EnhancedSocialCalculator:
             return player_rel.get("trust", default)
         if field == "relationship":
             return get_relationship_level(self._get_npc_field(npc_data, "trust", 0))
+        if field == "relationship_with_player":
+            relationship = identity.get("relationship_with_player", default)
+            if isinstance(relationship, dict):
+                return relationship
+            if relationship not in ("", None):
+                return {"type": str(relationship), "public_label": str(relationship).replace("_", " ").title(), "notes": ""}
+            return default
         if field in {"mood", "mood_score"}:
             return get_mood_score(npc_data, default)
         if field == "mood_label":
@@ -269,7 +276,8 @@ class EnhancedSocialCalculator:
                 "name": npc_name,
                 "race": npc_race,
                 "personality": self._get_npc_field(npc_data, "personality", {}),
-                "relationship_with_player": self._get_npc_field(npc_data, "relationship", "neutral"),
+                "relationship_with_player": self._get_npc_field(npc_data, "relationship_with_player", {"type": "stranger", "public_label": "Stranger", "notes": ""}),
+                "trust_label": self._get_npc_field(npc_data, "relationship", "neutral"),
                 "current_mood": self._get_npc_field(npc_data, "mood", 0),
                 "current_mood_label": self._get_npc_field(npc_data, "mood_label", "neutral"),
                 "trust": trust,

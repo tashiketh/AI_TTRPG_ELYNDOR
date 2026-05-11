@@ -2,17 +2,67 @@
 import json
 import os
 import glob
-import shutil
+import re
+
+import shutil
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple, Union
 from pathlib import Path
 from path_config import path_config
 
-from helper_functions import roll_generic_check
+from helper_functions import calculate_scaled_hp_mp_max, roll_generic_check, weighted_roll
 from crafting import calculate_spell_cast_time, is_spell_learned, normalize_spell_collection
+from inventory_tools import normalize_inventory_item
 from map_tools import initialize_combat_map, add_entity, move_entity, get_current_map, end_combat as map_end_combat, get_distance_meters
 
-class CombatTools:
+STAT_KEYS = ("Str", "Agi", "Vit", "Ins", "Will", "Crea")
+NPC_GENDER_MODIFIERS = {
+    "male": {"Str": 2, "Vit": 1, "Will": -1},
+    "female": {"Str": -1, "Ins": 1, "Will": 1},
+}
+ENVIRONMENT_ALIASES = {
+    "bar": ["tavern", "indoors", "settlement"],
+    "basement": ["basement", "indoors", "settlement"],
+    "bedroom": ["indoors", "tavern", "settlement"],
+    "building": ["indoors", "settlement"],
+    "city": ["city", "settlement", "slums", "market", "indoors"],
+    "countryside": ["plains", "forest"],
+    "hamlet": ["village", "settlement", "plains"],
+    "inn": ["tavern", "indoors", "settlement"],
+    "indoors": ["indoors", "tavern", "basement", "settlement"],
+    "marketplace": ["market", "city", "town", "settlement"],
+    "road": ["plains", "forest", "settlement"],
+    "room": ["indoors", "tavern", "settlement"],
+    "settlement": ["settlement", "village", "town", "city", "slums", "market", "indoors"],
+    "shop": ["market", "indoors", "settlement"],
+    "street": ["slums", "market", "city", "town", "settlement"],
+    "tavern": ["tavern", "indoors", "settlement", "village", "town", "city", "slums"],
+    "town": ["town", "settlement", "slums", "market", "indoors"],
+    "village": ["village", "settlement", "tavern", "market", "indoors"],
+}
+KNOWN_ENVIRONMENT_TERMS = set(ENVIRONMENT_ALIASES)
+for _aliases in ENVIRONMENT_ALIASES.values():
+    KNOWN_ENVIRONMENT_TERMS.update(_aliases)
+KNOWN_ENVIRONMENT_TERMS.update({
+    "caves", "crypt", "forest", "mountains", "plains", "ruins", "slums", "swamp",
+})
+MATCH_STOPWORDS = {
+    "a", "an", "and", "at", "by", "for", "from", "has", "in", "into", "is", "near",
+    "of", "on", "or", "the", "to", "with",
+    "attacker", "enemy", "fighter", "opponent", "role", "threat", "warrior",
+}
+ROLE_EQUIPMENT_DEFAULTS = {
+    "brute": {"main_hand": {"archetype": "battle axe", "tags": ["weapon", "melee", "edged", "iron"]}},
+    "caster": {"main_hand": {"archetype": "staff", "tags": ["weapon", "melee", "blunt", "wood"]}},
+    "leader": {"main_hand": {"archetype": "sword", "tags": ["weapon", "melee", "edged", "iron"]}},
+    "melee": {"main_hand": {"archetype": "dagger", "tags": ["weapon", "melee", "edged", "iron"]}},
+    "natural": {"main_hand": {"name": "Natural Attack", "archetype": "natural attack", "damage": 12, "range": 1.0, "speed": 1.8, "tags": ["weapon", "melee", "natural"]}},
+    "ranged": {"main_hand": {"archetype": "short bow", "tags": ["weapon", "ranged", "piercing", "wood"]}},
+    "unarmed": {"main_hand": {"name": "Unarmed Strike", "archetype": "unarmed strike", "damage": 8, "range": 1.0, "speed": 1.5, "tags": ["weapon", "melee", "unarmed", "blunt"]}},
+}
+
+
+class CombatTools:
     def __init__(self):
         self.state = self._load_combat_state()
         self.enemy_templates = self._load_enemies()
@@ -147,7 +197,7 @@ class CombatTools:
             return ref
         # By original_id
         for ck, data in self.state["participants"].items():
-            if data.get("original_id") == ref:
+            if data.get("original_id") == ref or data.get("entity_id") == ref:
                 return ck
         # By display_name (LLM-friendly)
         ref_lower = ref.strip().lower()
@@ -201,7 +251,304 @@ class CombatTools:
         else:
             return {"success": False, "message": f"Unknown combat action: {action}"}
 
-    # ==================== START COMBAT ====================
+    def _tokenize(self, value: Any) -> set:
+        text = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value or "")
+        return {
+            token.rstrip("s")
+            for token in re.findall(r"[a-z0-9_]+", text.lower())
+            if token and token not in MATCH_STOPWORDS and len(token) > 2
+        }
+
+    def _listify(self, value: Any) -> List[Any]:
+        if value in (None, "", [], {}):
+            return []
+        if isinstance(value, list):
+            return value
+        return [value]
+
+    def _expand_environment_terms(self, terms: Any) -> set:
+        expanded = set()
+        for term in self._listify(terms):
+            for token in self._tokenize(term):
+                if token not in KNOWN_ENVIRONMENT_TERMS:
+                    continue
+                expanded.add(token)
+                expanded.update(ENVIRONMENT_ALIASES.get(token, []))
+        return expanded
+
+    def _scene_environment_terms(self, participant: Dict[str, Any], game_state: Dict[str, Any]) -> set:
+        terms: List[Any] = []
+        for key in ("environment", "environments", "scene_environment", "location_type"):
+            terms.extend(self._listify(participant.get(key)))
+        world = game_state.get("world", {}) if isinstance(game_state, dict) else {}
+        location = world.get("location", {}) if isinstance(world.get("location"), dict) else {}
+        terms.extend(location.values())
+        scenario = game_state.get("scenario", {}) if isinstance(game_state, dict) else {}
+        terms.append(scenario.get("current_scene", ""))
+        scene_facts = scenario.get("scene_facts", {})
+        if isinstance(scene_facts, dict):
+            terms.append(scene_facts)
+        elif isinstance(scene_facts, list):
+            terms.extend(scene_facts)
+        return self._expand_environment_terms(terms)
+
+    def _enemy_text_tokens(self, participant: Dict[str, Any]) -> set:
+        pieces = [
+            participant.get("entity_id"),
+            participant.get("display_name"),
+            participant.get("template_id"),
+            participant.get("enemy_template"),
+            participant.get("threat_hint"),
+            participant.get("role_hint"),
+            participant.get("description"),
+            participant.get("scene_cues"),
+            participant.get("tags"),
+        ]
+        return self._tokenize(pieces)
+
+    def _score_enemy_template(self, template: Dict[str, Any], participant: Dict[str, Any], env_terms: set) -> Tuple[Optional[int], List[str]]:
+        template_env = self._expand_environment_terms(template.get("environment", []))
+        env_overlap = env_terms & template_env
+        if env_terms and template_env and not env_overlap:
+            return None, ["environment mismatch"]
+
+        tokens = self._enemy_text_tokens(participant)
+        name_tokens = self._tokenize(template.get("name", ""))
+        alias_tokens = self._tokenize(template.get("aliases", []))
+        cue_tokens = self._tokenize(template.get("scene_cues", []))
+        tag_tokens = self._tokenize(template.get("tags", []))
+        faction_tokens = self._tokenize(template.get("faction", ""))
+        role = str(template.get("role", "")).strip().lower()
+        requested_role = str(participant.get("role_hint") or participant.get("role") or "").strip().lower()
+        explicit_template = str(participant.get("template_id") or participant.get("enemy_template") or "").strip().lower()
+
+        score = 0
+        reasons: List[str] = []
+        identity_signal = False
+        template_name = str(template.get("name", "")).strip().lower()
+        if explicit_template and explicit_template == template_name:
+            score += 120
+            reasons.append("explicit template")
+            identity_signal = True
+        if tokens & name_tokens:
+            score += 35 + 5 * len(tokens & name_tokens)
+            reasons.append("name match")
+            identity_signal = True
+        if tokens & alias_tokens:
+            score += 45 + 6 * len(tokens & alias_tokens)
+            reasons.append("alias match")
+            identity_signal = True
+        if tokens & cue_tokens:
+            score += 25 + 4 * len(tokens & cue_tokens)
+            reasons.append("scene cue match")
+            identity_signal = True
+        if tokens & tag_tokens:
+            score += 12 + 3 * len(tokens & tag_tokens)
+            reasons.append("tag match")
+            identity_signal = True
+        if tokens & faction_tokens:
+            score += 8
+            reasons.append("faction match")
+            identity_signal = True
+        if requested_role and requested_role == role:
+            score += 12
+            reasons.append("role match")
+        if env_overlap:
+            score += 30 + 2 * len(env_overlap)
+            reasons.append("environment match")
+        if "armed" in tokens and role in {"melee", "brute", "leader"}:
+            score += 10
+            reasons.append("armed melee fit")
+        if {"thief", "intruder", "mugger", "robber"} & tokens and "criminal" in tag_tokens:
+            score += 20
+            reasons.append("criminal threat fit")
+            identity_signal = True
+        try:
+            cv = int(template.get("CV", 0))
+        except (TypeError, ValueError):
+            cv = 0
+        if {"minor", "small", "ordinary"} & tokens and cv <= 4:
+            score += 5
+        if not identity_signal:
+            return None, ["no identity signal"]
+        return score, reasons
+
+    def _resolve_enemy_template(self, participant: Dict[str, Any], game_state: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        env_terms = self._scene_environment_terms(participant, game_state)
+        best_template = None
+        best_score = None
+        best_reasons: List[str] = []
+        for template in self.enemy_templates.values():
+            score, reasons = self._score_enemy_template(template, participant, env_terms)
+            if score is None:
+                continue
+            if best_score is None or score > best_score:
+                best_template = template
+                best_score = score
+                best_reasons = reasons
+        if best_template and (best_score or 0) >= 35:
+            return best_template, {
+                "source": "enemies.json",
+                "score": best_score,
+                "reasons": best_reasons,
+                "environment_terms": sorted(env_terms),
+            }
+        return None, {
+            "source": "unresolved",
+            "score": best_score,
+            "environment_terms": sorted(env_terms),
+        }
+
+    def _load_base_stats(self) -> Dict[str, Any]:
+        try:
+            with open(path_config.base_stats_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _build_enemy_from_base_stats(self, participant: Dict[str, Any], game_state: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        base_stats = self._load_base_stats()
+        text_tokens = self._enemy_text_tokens(participant)
+        race = str(participant.get("race") or participant.get("subtype") or "").strip().lower()
+        if not race:
+            for candidate in base_stats:
+                if candidate.lower() in text_tokens:
+                    race = candidate.lower()
+                    break
+        if not race or race not in base_stats:
+            return None, {"source": "base_stats", "reason": "No usable race for fallback enemy"}
+
+        race_stats = base_stats.get(race, {})
+        stats: Dict[str, int] = {}
+        max_stats: Dict[str, int] = {}
+        for stat in STAT_KEYS:
+            values = race_stats.get(stat, [8, 10, 12])
+            if isinstance(values, list) and len(values) >= 3:
+                stats[stat] = int(values[1])
+                max_stats[stat] = int(values[2])
+            else:
+                stats[stat] = int(values if isinstance(values, (int, float)) else 10)
+                max_stats[stat] = max(20, stats[stat])
+
+        gender = str(participant.get("gender") or "").strip().lower()
+        for stat, modifier in NPC_GENDER_MODIFIERS.get(gender, {}).items():
+            stats[stat] = max(1, min(max_stats.get(stat, 99), stats.get(stat, 10) + modifier))
+
+        role = str(participant.get("role_hint") or participant.get("role") or "melee").strip().lower()
+        if role not in ROLE_EQUIPMENT_DEFAULTS:
+            role = "ranged" if "ranged" in text_tokens or "archer" in text_tokens else "melee"
+        equipment = participant.get("equipment") or ROLE_EQUIPMENT_DEFAULTS.get(role)
+        if not equipment:
+            return None, {"source": "base_stats", "reason": "No equipment package for fallback enemy"}
+
+        display = participant.get("display_name") or f"{race.title()} {role.title()}"
+        return {
+            "name": display,
+            "archetype": "humanoid",
+            "subtype": race,
+            "faction": participant.get("faction", "none"),
+            "aggression": participant.get("aggression", "brave"),
+            "environment": sorted(self._scene_environment_terms(participant, game_state)),
+            "CV": participant.get("CV", 1),
+            "tier": participant.get("tier", 1),
+            "role": role,
+            "tags": participant.get("tags", ["temporary_enemy"]),
+            "equipment": equipment,
+            **stats,
+        }, {"source": "base_stats", "race": race, "role": role}
+
+    def _skills_for_enemy_template(self, template: Dict[str, Any]) -> Dict[str, float]:
+        try:
+            cv = float(template.get("CV", 1) or 1)
+        except (TypeError, ValueError):
+            cv = 1.0
+        bonus = max(0.0, min(15.0, round(2.0 + cv / 2.0, 1)))
+        skills = {
+            "melee weapons": 0.0,
+            "unarmed combat": 0.0,
+            "ranged weapons": 0.0,
+            "shields": 0.0,
+            "spellcasting": 0.0,
+        }
+        role = str(template.get("role", "melee")).lower()
+        tags = self._tokenize(template.get("tags", []))
+        if role == "ranged":
+            skills["ranged weapons"] = bonus
+        elif role == "caster" or "caster" in tags or "magic" in tags:
+            skills["spellcasting"] = bonus
+        elif "wild_animal" in tags or template.get("archetype") in {"beast", "undead"}:
+            skills["unarmed combat"] = bonus
+        else:
+            skills["melee weapons"] = bonus
+        return skills
+
+    def _equipment_for_template(self, template: Dict[str, Any], participant: Dict[str, Any]) -> Dict[str, Any]:
+        equipment = participant.get("equipment") or template.get("equipment")
+        if equipment:
+            return equipment
+        tags = self._tokenize(template.get("tags", []))
+        role = str(template.get("role", "melee")).strip().lower()
+        if role == "ranged":
+            key = "ranged"
+        elif role == "caster" or "caster" in tags or "magic" in tags:
+            key = "caster"
+        elif "wild_animal" in tags or template.get("archetype") in {"beast", "undead"}:
+            key = "natural"
+        elif role in ROLE_EQUIPMENT_DEFAULTS:
+            key = role
+        else:
+            key = "melee"
+        return ROLE_EQUIPMENT_DEFAULTS[key]
+
+    def _normalize_combat_equipment(self, equipment: Any) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+        if not isinstance(equipment, dict):
+            return {}, {}
+        raw_slots = equipment.get("slots") if isinstance(equipment.get("slots"), dict) else equipment
+        inventory: Dict[str, Dict[str, Any]] = {}
+        equipped: Dict[str, str] = {}
+        for slot, raw_item in raw_slots.items():
+            if not isinstance(raw_item, dict):
+                continue
+            condition = str(raw_item.get("condition") or "pristine").lower()
+            item = normalize_inventory_item(raw_item, quantity=int(raw_item.get("quantity", 1) or 1), condition=condition)
+            key_source = item.get("archetype") or item.get("name") or slot
+            item_id = re.sub(r"[^a-z0-9_]+", "_", str(key_source).lower()).strip("_") or str(slot)
+            item_id = f"{slot}_{item_id}"
+            inventory[item_id] = item
+            equipped[str(slot)] = item_id
+        return inventory, equipped
+
+    def _fail_combat_start(self, message: str) -> Dict[str, Any]:
+        self.state = {"active": False, "current_second": 0.0, "participants": {}, "map_linked": False, "log": []}
+        try:
+            map_end_combat()
+        except Exception:
+            pass
+        self._save_combat_state(self.state)
+        return {"success": False, "pause_gameplay": True, "message": message}
+
+    def _roll_participant_check(self, participant: Dict[str, Any], stats_used: List[str], skill_used: str, difficulty_class: int) -> Dict[str, Any]:
+        stats = participant.get("stats", {})
+        skills = participant.get("skills", {})
+        stats_used = (stats_used or [])[:3]
+        avg_stat = sum(float(stats.get(stat, 10)) for stat in stats_used) / max(1, len(stats_used))
+        skill_mod = float(skills.get(skill_used, 0.0) or 0.0)
+        natural_roll = weighted_roll(num_dice=4, die_sides=25)
+        total_bonus = (avg_stat - 10) + skill_mod
+        roll = natural_roll + total_bonus
+        margin = roll - difficulty_class
+        return {
+            "success": margin >= 0,
+            "margin": margin,
+            "roll": roll,
+            "natural_roll": natural_roll,
+            "total_bonus": total_bonus,
+            "stats_used": stats_used,
+            "skill_used": skill_used,
+        }
+
+    # ==================== START COMBAT ====================
     def start_combat(self, participants: List[Dict]) -> Dict:
         """Initialize combat with participants."""
         if not participants:
@@ -240,26 +587,78 @@ class CombatTools:
             # Determine original_id
             if entity_id == "player" or display_name.lower() == "aburi":
                 original_id = "player"
-            elif entity_id.startswith("npc_"):
+            elif entity_id.startswith("npc_") and entity_id in game_state.get("npcs", {}):
                 original_id = entity_id
             else:
-                original_id = None
+                original_id = None
+
+            skills = p.get("skills", {}) if isinstance(p.get("skills"), dict) else {}
+            combat_inventory: Dict[str, Dict[str, Any]] = {}
+            combat_equipment: Dict[str, str] = {}
+            resolver_info: Dict[str, Any] = {}
+            template_id = display_name
+            role = p.get("role") or p.get("role_hint") or "melee"
+            tags = p.get("tags", []) if isinstance(p.get("tags"), list) else []
+            ai_profile = p.get("ai_profile", [role])
 
-            # Load stats / HP
+            # Load stats plus current/max HP and MP from the shared derived-stat formula.
             if original_id == "player":
-                hp = game_state.get("player", {}).get("derived", {}).get("HP", 320)
-                max_hp = game_state.get("player", {}).get("derived", {}).get("HP_max", 320)
-                stats = game_state.get("player", {}).get("stats", {"Str": 16, "Agi": 15, "Vit": 16, "Ins": 14, "Will": 15, "Crea": 16})
+                player_data = game_state.get("player", {})
+                stats = player_data.get("stats", {"Str": 16, "Agi": 15, "Vit": 16, "Ins": 14, "Will": 15, "Crea": 16})
+                skills = player_data.get("skills", {})
+                maxima = calculate_scaled_hp_mp_max(stats)
+
+                derived = player_data.get("derived", {})
+
+                hp = derived.get("HP", derived.get("HP_max", maxima["HP_max"]))
+
+                max_hp = derived.get("HP_max", maxima["HP_max"])
+
+                mp = derived.get("MP", derived.get("MP_max", maxima["MP_max"]))
+
+                max_mp = derived.get("MP_max", maxima["MP_max"])
             elif original_id and original_id.startswith("npc_") and original_id in game_state.get("npcs", {}):
                 npc_data = game_state["npcs"][original_id]
-                hp = npc_data.get("hp", 80)
-                max_hp = npc_data.get("max_hp", hp)
-                stats = npc_data.get("stats", {"Str": 10, "Agi": 10, "Vit": 10, "Ins": 8, "Will": 8, "Crea": 8})
+                stats = npc_data.get("stats", {"Str": 10, "Agi": 10, "Vit": 10, "Ins": 8, "Will": 8, "Crea": 8})
+                skills = npc_data.get("skills", {})
+                maxima = calculate_scaled_hp_mp_max(stats)
+                derived = npc_data.get("derived", {})
+
+                hp = derived.get("HP", npc_data.get("hp", derived.get("HP_max", maxima["HP_max"])))
+
+                max_hp = derived.get("HP_max", npc_data.get("max_hp", maxima["HP_max"]))
+
+                mp = derived.get("MP", npc_data.get("mp", derived.get("MP_max", maxima["MP_max"])))
+
+                max_mp = derived.get("MP_max", npc_data.get("max_mp", maxima["MP_max"]))
             else:
-                template = self.enemy_templates.get(display_name, {})
-                hp = template.get("Vit", 8) * 8 + 10
-                max_hp = hp
-                stats = {stat: template.get(stat, 8) for stat in ["Str", "Agi", "Vit", "Ins", "Will", "Crea"]}
+                template, resolver_info = self._resolve_enemy_template(p, game_state)
+                if not template:
+                    template, resolver_info = self._build_enemy_from_base_stats(p, game_state)
+                if not template:
+                    return self._fail_combat_start(
+                        f"Could not initialize combatant '{display_name}': {resolver_info.get('reason', 'no matching enemy template or fallback build')}"
+                    )
+                template_id = template.get("name", display_name)
+                if not p.get("display_name"):
+                    display_name = template_id
+                stats = {stat: template.get(stat, 8) for stat in STAT_KEYS}
+                skills = self._skills_for_enemy_template(template)
+                maxima = calculate_scaled_hp_mp_max(stats)
+                hp = maxima["HP_max"]
+
+                max_hp = maxima["HP_max"]
+
+                mp = maxima["MP_max"]
+
+                max_mp = maxima["MP_max"]
+                role = template.get("role", role)
+                tags = template.get("tags", tags) if isinstance(template.get("tags"), list) else tags
+                ai_profile = p.get("ai_profile") or [role]
+                equipment = self._equipment_for_template(template, p)
+                combat_inventory, combat_equipment = self._normalize_combat_equipment(equipment)
+                if not combat_inventory:
+                    return self._fail_combat_start(f"Could not initialize combatant '{display_name}': no usable combat equipment")
 
             agi = stats.get("Agi", 10)
             base_delay = max(0.0, 5.0 - (agi * 0.15))
@@ -268,23 +667,37 @@ class CombatTools:
 
             self.state["participants"][combat_key] = {
                 "display_name": display_name,
-                "template_id": display_name,
+                "template_id": template_id,
                 "team": team,
                 "stats": stats,
-                "hp": hp,
+                "skills": skills,
+
+                "hp": hp,
                 "max_hp": max_hp,
-                "pos": pos,
+                "mp": mp,
+
+                "max_mp": max_mp,
+
+                "inventory": combat_inventory,
+
+                "equipment": combat_equipment,
+
+                "pos": pos,
                 "next_action_second": initial_delay,
                 "conditions": [],
-                "tags": [],
-                "ai_profile": ["melee"],
-                "role": "melee",
+                "tags": tags,
+                "ai_profile": ai_profile,
+                "role": role,
                 "combat_key": combat_key,
-                "original_id": original_id,
+                "entity_id": entity_id,
+
+                "original_id": original_id,
                 "instance": count,
                 "is_blocking": False,
                 "block_item_id": None,
-                "block_item_hp": 0
+                "block_item_hp": 0,
+
+                "resolver": resolver_info
             }
 
             add_entity(entity_id=combat_key, pos=pos, display_name=display_name, team=team)
@@ -380,7 +793,23 @@ class CombatTools:
                 print(f"Warning: Inventory load failed for {entity_id}: {e}")
 
         if not base_item:
-            # Default to basic shield if nothing found
+            inventory = participant.get("inventory", {}) if isinstance(participant.get("inventory"), dict) else {}
+
+            equipment = participant.get("equipment", {}) if isinstance(participant.get("equipment"), dict) else {}
+
+            equipped_id = equipment.get("off_hand") or equipment.get("main_hand")
+
+            if item_id and item_id in inventory:
+
+                base_item = inventory[item_id]
+
+            elif equipped_id and equipped_id in inventory:
+
+                base_item = inventory[equipped_id]
+
+        if not base_item:
+
+            # Default to basic shield if nothing found
             base_item = {"name": "basic shield", "hp": 5, "speed": 2.0}
 
         return {
@@ -469,7 +898,45 @@ class CombatTools:
                 print(f"Warning: Inventory load failed for {attacker_id}: {e}")
 
         if not base_weapon:
-            stats = participant.get("stats", {})
+            inventory = participant.get("inventory", {}) if isinstance(participant.get("inventory"), dict) else {}
+
+            equipment = participant.get("equipment", {}) if isinstance(participant.get("equipment"), dict) else {}
+
+            if weapon_id and weapon_id in inventory:
+
+                base_weapon = inventory[weapon_id]
+
+            else:
+
+                equipped_id = equipment.get("main_hand") or equipment.get("off_hand")
+
+                if equipped_id and equipped_id in inventory:
+
+                    base_weapon = inventory[equipped_id]
+
+                else:
+
+                    best = None
+
+                    best_dmg = -1
+
+                    for item in inventory.values():
+
+                        if "weapon" in item.get("tags", []):
+
+                            dmg = item.get("damage", 0)
+
+                            if dmg > best_dmg:
+
+                                best_dmg = dmg
+
+                                best = item
+
+                    base_weapon = best
+
+        if not base_weapon:
+
+            stats = participant.get("stats", {})
             str_stat = stats.get("Str", 10)
             if participant.get("role") == "ranged":
                 base_weapon = {"name": "ranged attack", "range": 8.0, "damage": round(5 + str_stat * 0.9, 1), "tags": ["ranged"]}
@@ -523,20 +990,36 @@ class CombatTools:
             return {"success": False, "message": full_msg, "final_damage": 0}
 
         # Roll
-        original_id = self.get_original_id(attacker_key)
-        roll_entity_id = "player" if original_id == "player" else attacker_key
-        check_result = roll_generic_check(
-            entity_id=roll_entity_id,
-            stats_used=["Str"] if "ranged" not in weapon.get("tags", []) else ["Agi"],
-            skill_used="ranged weapons" if "ranged" in weapon.get("tags", []) else "melee weapons",
-            difficulty_class=50,
-            situational_bonus=0.0
-        )
-        margin = check_result.get("margin", 0)
+        original_id = self.get_original_id(attacker_key)
+
+        stats_used = ["Str"] if "ranged" not in weapon.get("tags", []) else ["Agi"]
+
+        skill_name = "ranged weapons" if "ranged" in weapon.get("tags", []) else "melee weapons"
+        if original_id:
+            roll_entity_id = "player" if original_id == "player" else attacker_key
+            check_result = roll_generic_check(
+                entity_id=roll_entity_id,
+                stats_used=stats_used,
+                skill_used=skill_name,
+                difficulty_class=50,
+                situational_bonus=0.0
+            )
+        else:
+            check_result = self._roll_participant_check(
+                self.state["participants"][attacker_key],
+                stats_used=stats_used,
+                skill_used=skill_name,
+                difficulty_class=50,
+            )
+
+        margin = check_result.get("margin", 0)
         # Time cost
         base_seconds = weapon.get("speed", 2.0)
-        skill_name = "ranged weapons" if "ranged" in weapon.get("tags", []) else "melee weapons"
-        skill_bonus = self.state["participants"][attacker_key].get("stats", {}).get(skill_name, 0.0)
+        participant_skills = self.state["participants"][attacker_key].get("skills", {})
+        skill_bonus = participant_skills.get(
+            skill_name,
+            self.state["participants"][attacker_key].get("stats", {}).get(skill_name, 0.0),
+        )
         modified_seconds = base_seconds / (1 + 0.04 * skill_bonus)
         if style == "light":
             time_cost = modified_seconds * 0.75

@@ -1,7 +1,7 @@
 {
   "title": "Elyndor - Story Bible",
   "version": "1.0",
-  "last_updated": "2026-04-28",
+  "last_updated": "2026-05-09",
 
   "core_premise": {
     "summary": "Harsh, grounded dark-fantasy world. Magic is dangerous and personal. Mana is finite. Slavery is legal and common. Actions have lasting consequences.",
@@ -16,13 +16,26 @@
     "description": "Fertile kingdom with rivers, forests, and rolling ridges. Trade flows along the great river."
   },
 
+  "general_considerations": {
+    "virginity_awareness": "Females, particularly attractive young ones or those in dire circumstances, know their virginity is worth a fortune on the market. Most strive to preserve it, but many understand it can be traded as a bargaining tool for survival or protection.",
+    "settlements": {
+      "density": "Settlements are deliberately sparse. No two settlements are closer than three days' steady travel (100–120 km) apart under normal road or trail conditions.",
+      "character": "Most settlements are small villages or hamlets of 50–400 people. Larger towns are rare, and true cities are exceptionally uncommon.",
+      "hierarchy": {
+        "common": "Small villages or hamlets",
+        "uncommon": "Market towns (800–3,000 people)",
+        "rare": "Fortified towns or small cities (up to 10,000 people)"
+      }
+    }
+  },
+
   "magic": {
     "summary": "Tag-based spell system. Spells have complexity, MP cost, and risk. Research and invention are possible but dangerous.",
     "key_rule": "Mana is a finite personal resource that must be carefully managed."
   },
 
   "demon_invasion": {
-    "summary": "Occurred 18 months ago. Rift sealed with elven help. Scattered warbands remain.",
+    "summary": "Occurred 18 months before start of story. Rift sealed with elven help. Scattered warbands remain.",
     "physiology": {
       "common": ["Digitigrade legs", "2.2–3m tall", "Leathery/scaled skin", "Superior night vision"],
       "low_caste": "Four arms, brutish warriors",
@@ -53,14 +66,93 @@
   "slavery": {
     "summary": "Legal across all races. Two main categories.",
     "types": {
-      "red_tattoo": "Prisoners / War slaves / Demon victims - Lifetime slavery. Enchanted mark glows steady red.",
-      "blue_tattoo": "Indentured servants - Can buy freedom. Simple ink tattoo."
+      "red_tattoo": {
+        "description":"Punitive lifetime slaves — prisoners of war, serious criminals, or captured by illegal slavers or demons.",
+        "appearance": "Enchanted mark glows steady red. Covers entire neck.",
+        "mechanics_with_master": "The slave suffers severe pain when they understand a direct command from their registered owner and intentionally refuse to comply. Pain stops when they comply. Only the slave\u2019s master can order a slave.",
+        "mechanics_without_master": "The slave suffers severe pain when they understand a direct command from any non-slave and intentionally refuse to comply. This is intentional design — if they kill their master, then everyone becomes their master.",
+        "command_trigger_clarification": "Only clear, direct commands that the slave recognizes as orders trigger the pain. Casual speech, questions, suggestions, or ambiguous statements do not trigger it.",
+        "social_status": "No rights, considered property. Cannot own property or earn wages.",
+        "applying_tattoo": "Requires a rare Binding Spell + enchanted ink. The spell is closely guarded by slavers and specialized mages.",
+        "removing_tattoo": "Requires the same Binding Spell + specially enchanted paste. No slaver or official will willingly perform it on a red-tattooed slave."
+      },
+      "blue_tattoo": {
+        "description":"Indentured servants - Can buy freedom. Simple ink tattoo.",
+        "appearance": "Simple blue dye tattoo that fully covers the neck.",
+        "mechanics_with_master": "No extra effects.",
+        "mechanics_without_master": "No extra effects.",
+        "social_status": "Limited rights. Cannot own property. Can earn wages.",
+        "applying_tattoo": "requires specially enchanted ink.",
+        "removing_tattoo": "Requires specially enchanted paste. Any legitimate slaver or official will remove it upon fulfillment of contract or payoff of remaining debt."
+      }
+    },
+    "general_rules": {
+      "tattoo_visibility": "The tattoo must remain clearly and completely visible in public. Attempting to hide or cover a slave\u2019s neck tattoo results in harsh penalties for both the slave and owner. Red tattoos are particularly difficult to disguise.",
+      "escape_punishment": "Recaptured slaves receive a red tattoo if they had a blue one and are sold again. Recaptured slaves with a red tattoo suffer a full day of torture if recaptured. If violent they are executed.",
+      "helping_slaves": "Aiding the escape of a slave is a serious crime, punished by fine of ten times the slave value or enslavement.",
+      "freeing_slaves": "A slave owner may free their own slave at any time if they are able."
+    },
+
+    "claiming_slaves": {
+      "summary": "A masterless red-tattooed slave can be claimed through two primary methods. Only slavers can force ownership. Non-slavers require the slave's explicit, willing consent.",
+      "forced_claim": {
+        "method": "Binding Spell (Slaver Only)",
+        "description": "Slavers or licensed mages can force a new master-slave bond using the Binding Spell. The slave has no choice and suffers extreme pain if they resist during the ritual.",
+        "owner_mark": "The new owner receives a small black tattoo in a location of their choosing.",
+        "requirements": "Binding Spell + enchanted red ink.",
+        "notes": "This is the standard, reliable method used in the slave trade."
+      },
+      "consensual_claim": {
+        "method": "Willing Submission Rite",
+        "description": "A masterless red-tattooed slave may willingly accept a new owner. The slave must clearly understand and freely consent to the bond without duress or magical coercion. Once completed, the slave cannot withdraw consent.",
+        "owner_mark": "The new owner receives a small black tattoo (usually in a discreet location) that partially matches the slave\u2019s neck tattoo.",
+        "methods": {
+          "enchanted_ink": "A pattern matching the slave\u2019s neck tattoo is painted on the owner using enchanted ink. The slave swears an oath of service while the ink is pressed against their tattoo. The ink permanently becomes a black tattoo. Neither party feels any pain with this method.",
+          "blood_pact": "The owner carves a matching pattern into their own flesh. The slave swears an oath of service while the fresh wound is pressed against their neck tattoo. The wound instantly and painfully changes into a small black tattoo. The slave feels no pain with this method."
+        },
+        "requirements": [
+          "Explicit, informed, and unforced consent from the slave.",
+          "A practitioner knowledgeable in the rite (Enchanting skill).",
+          "DC 35 using proper enchanted ink and training. DC 60 if using secondhand knowledge, such as direction from the slave.",
+          "Enchanted red ink (for ink method) or 15% of maximum HP in blood loss (for blood pact).",
+          "10–30 minutes of uninterrupted ritual."
+        ],
+        "risks": [
+          "Legal risk — claiming a masterless red slave is considered grand theft if anyone has claim to the slave. If the old owner demands it, the new owner can be enslaved with a red tattoo.",
+          "Failed ritual causes extreme pain to the new owner for up to 30 minutes depending on how badly the ritual failed."
+        ],
+        "note": "All slaves know the method of consensual claim. They teach each other in case a master dies."
+      }
+    },
+    "prices": {
+      "base_price": {
+        "child": 1200,
+        "young_adult": 15000,
+        "adult": 11000,
+        "elder": 400
+      },
+      "multipliers": {
+        "different_race": 1.8,      
+        "virgin_female": 10.0,      
+        "criminal": 0.4,
+        "healthy": 2.0,
+        "attractive": 3.5,
+        "noble": 8.0,
+        "skilled": 2.5
+      },
+       "supplies":{
+        "blue_ink": 50,
+        "red_ink": 100,
+        "blue_removal_paste": 500,
+        "red_removal_paste": 50000
+      },
+      "notes": "Final price = base_price × product of all applicable multipliers. High-value females (especially virgins) are extremely expensive; slavers have strong financial incentive to keep them untouched. Only licensed slavers reliably have these supplies."
     }
   },
 
   "key_locations": {
     "river_marches": {
-      "daejon": "Regional hub and major Adventurers’ Guild outpost",
+      "daejon": "Regional hub and major Adventurers\u2019 Guild outpost",
       "river_road": "Main north-south trade route",
       "haversford": "Small fortified town ~1 day north",
       "northern_territories": "Active demon remnant zone"

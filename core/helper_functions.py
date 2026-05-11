@@ -45,16 +45,18 @@ def _band_bounds(band: Dict[str, Any]) -> Tuple[float, float]:
 def _band_for_value(bands: List[Dict[str, Any]], value: Any) -> Dict[str, Any]:
     numeric_value = _coerce_float(value)
     valid_bands = [band for band in bands if isinstance(band, dict) and band.get("label")]
-    for band in valid_bands:
-        min_value, max_value = _band_bounds(band)
-        if min_value <= numeric_value <= max_value:
-            return dict(band)
     if not valid_bands:
         return {"label": "neutral", "description": "", "min": 0, "max": 0}
     sorted_bands = sorted(valid_bands, key=lambda band: _band_bounds(band)[0])
-    if numeric_value < _band_bounds(sorted_bands[0])[0]:
-        return dict(sorted_bands[0])
-    return dict(sorted_bands[-1])
+    previous_band = None
+    for band in sorted_bands:
+        min_value, max_value = _band_bounds(band)
+        if numeric_value < min_value:
+            return dict(previous_band or band)
+        if min_value <= numeric_value <= max_value:
+            return dict(band)
+        previous_band = band
+    return dict(previous_band or sorted_bands[-1])
 
 def get_trust_band(trust: Any) -> Dict[str, Any]:
     """Return the trust-scale band for a numeric trust value."""

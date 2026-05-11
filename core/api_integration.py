@@ -109,6 +109,25 @@ class APIManager:
         prompt = prompts.get("npc_action_review", "")
         if guardrail not in prompt:
             prompts["npc_action_review"] = f"{prompt}\n\nMECHANICS OWNERSHIP:\n{guardrail}".strip()
+        social_guardrail = (
+            "This is an NPC interaction logic check, not a keyword check. If a tracked or involved NPC "
+            "is addressed, asked, reassured, challenged, negotiated with, threatened, comforted, deceived, "
+            "or otherwise socially affected, return needs_social_check true. Return false only for purely "
+            "physical/background actions that do not affect NPC trust, mood, cooperation, consent, "
+            "information sharing, resistance, or behavior."
+        )
+        prompt = prompts.get("social_check_detection", "")
+        if social_guardrail not in prompt:
+            prompts["social_check_detection"] = f"{prompt}\n\nNPC SOCIAL ROUTING:\n{social_guardrail}".strip()
+        skill_guardrail = (
+            "Do not select communication for direct interaction with a tracked NPC. NPC-facing persuasion, "
+            "reassurance, deception, intimidation, bargaining, requests, or consent belong to social_check_detection "
+            "and social_calc. Use communication only for non-NPC communication such as public speaking, coded "
+            "messages, propaganda, performance, or broad group influence without a tracked NPC target."
+        )
+        prompt = prompts.get("skill_check_detection", "")
+        if skill_guardrail not in prompt:
+            prompts["skill_check_detection"] = f"{prompt}\n\nCOMMUNICATION ROUTING:\n{skill_guardrail}".strip()
         return prompts
 
     def _get_default_prompts(self) -> Dict[str, str]:
@@ -182,9 +201,9 @@ Do not include markdown or prose.""",
 
 Use only the compact referee packet provided: current_player_input, last_interaction, proposed_check, skill_reference, and known_facts. skill_reference is the full selected entry from skills_with_dc.json. known_facts contains saved scene/world/player/NPC facts plus world_time. The base DC was already chosen by skill_check_detection; echo proposed_check.base_dc exactly and do not re-evaluate it. Use known_facts and last_interaction only for practical situational modifiers. Do not use outside lore, unstated assumptions, or narrative history beyond this packet. effect "helps" must use a negative modifier, effect "hurts" must use a positive modifier, and effect "neutral" must use 0. Never use a plus sign in JSON numbers; write 2, not +2. Most facts should be 0, 1, 2, -1, or -2. Use 5+ only for significant factors, 10+ for major factors, and 20 only for overwhelming factors. Do not modify DC for character stats, skill ranks, bonuses, or lack of training. Do not compute the final DC; Python will apply only the top 3 positive and top 3 negative modifiers.""",
 
-            "turn_summary": """Summarize this completed RPG turn in one concise line.
+            "turn_summary": """Summarize this completed RPG turn in one concise line and extract optional durable memory updates.
             Do not promote speculation or lower-priority inference into durable truth.
-            Return JSON with summary only."""
+            Return JSON with summary and memory_updates."""
         }
 
     def _generate_context_hash(self, prompt_type: str, context: dict) -> str:
@@ -266,7 +285,8 @@ Use only the compact referee packet provided: current_player_input, last_interac
             optimized["npc_profile"] = {
                 "name": optimized["npc_profile"].get("name", ""),
                 "personality": optimized["npc_profile"].get("personality", {}),
-                "relationship": optimized["npc_profile"].get("relationship_with_player", "neutral"),
+                "relationship_with_player": optimized["npc_profile"].get("relationship_with_player", {"type": "stranger", "public_label": "Stranger", "notes": ""}),
+                "trust_label": optimized["npc_profile"].get("trust_label", optimized["npc_profile"].get("relationship", "neutral")),
                 "mood": optimized["npc_profile"].get("current_mood", 0),
                 "mood_label": optimized["npc_profile"].get("current_mood_label", "neutral / transactional"),
                 "voice_style": optimized["npc_profile"].get("voice_style", "normal")
@@ -685,8 +705,25 @@ Use only the compact referee packet provided: current_player_input, last_interac
 
     def _infer_social_check(self, context: dict) -> Dict[str, Any]:
         """Rule-based social detector used when the model is unavailable or too conservative."""
-        player_action = context.get("player_input", "").lower()
+        raw_player_action = str(context.get("player_input", ""))
+        player_action = raw_player_action.lower()
         known_npcs = context.get("known_npcs", []) or []
+        quoted_speech = any(mark in raw_player_action for mark in ['"', "'", "“", "”", "‘", "’"])
+        turn_context = context.get("turn_context", {}) if isinstance(context.get("turn_context"), dict) else {}
+        context_signal_text = " ".join([
+            str(turn_context.get("likely_intent", "")),
+            str(turn_context.get("scene_focus", "")),
+            " ".join(str(item) for item in turn_context.get("mechanical_risks", []) if item),
+            " ".join(str(item) for item in turn_context.get("continuity_constraints", []) if item),
+        ]).lower()
+        context_social_signal = any(
+            signal in context_signal_text
+            for signal in [
+                "social", "trust", "cooperation", "cooperate", "consent", "response",
+                "persuad", "reassur", "comfort", "fear", "willing", "question",
+                "negot", "deceiv", "threat", "convince", "agree",
+            ]
+        )
         social_words = [
             "talk", "speak", "say", "ask", "tell", "convince", "persuade",
             "intimidate", "threaten", "bargain", "negotiate", "lie", "deceive",
@@ -758,8 +795,7 @@ Use only the compact referee packet provided: current_player_input, last_interac
             if len(active_matches) == 1:
                 target = active_matches[0].get("npc_id", active_matches[0].get("name", ""))
 
-        if not target and direct_second_person_request:
-            turn_context = context.get("turn_context", {}) if isinstance(context.get("turn_context"), dict) else {}
+        if not target:
             involved_refs = turn_context.get("involved_npcs", []) if isinstance(turn_context.get("involved_npcs"), list) else []
             involved_matches = []
             seen_ids = set()
@@ -776,6 +812,8 @@ Use only the compact referee packet provided: current_player_input, last_interac
         needs_check = bool(target) and (
             any(word in player_action for word in social_words)
             or direct_second_person_request
+            or quoted_speech
+            or context_social_signal
         )
         interaction_type = "appeal"
         if self._word_present(player_action, ["threaten", "intimidate", "warn"]):
@@ -939,6 +977,10 @@ Use only the compact referee packet provided: current_player_input, last_interac
                 race = npc.get("race")
                 if race:
                     relevant_races.append(str(race).lower())
+            relevant_lore_keys = set(relevant_races)
+            for item in context.get("story_bible_lore", []) or []:
+                if isinstance(item, dict) and item.get("key"):
+                    relevant_lore_keys.add(str(item.get("key")).split(".", 1)[0])
 
             return {
                 "involved_npcs": [npc for npc in involved_npcs if npc],
@@ -948,7 +990,7 @@ Use only the compact referee packet provided: current_player_input, last_interac
                 "continuity_constraints": ["Preserve current scene facts and any known NPC state."],
                 "forbidden_assumptions": ["Do not choose movement, speech, or decisions for the player."],
                 "scene_focus": str(context.get("current_scene", ""))[:700],
-                "relevant_lore_keys": sorted(set(relevant_races)),
+                "relevant_lore_keys": sorted(relevant_lore_keys),
             }
 
         elif prompt_type == "narrative_brief":
@@ -998,7 +1040,7 @@ Use only the compact referee packet provided: current_player_input, last_interac
                 summary = f"Player: {player_action[:70]} | DM: {narrative[:110]}"
             else:
                 summary = f"Player acted: {player_action[:160]}"
-            return {"summary": summary}
+            return {"summary": summary, "memory_updates": {}}
 
         return {"narrative": "Fallback response generated."}
 

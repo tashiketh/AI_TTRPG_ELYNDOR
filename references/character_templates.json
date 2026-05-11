@@ -7,7 +7,20 @@
     "class_theme": "",
     "reputation": 0,
     "title": "",
-    "age": 0
+    "age": 0,
+    "relationship_with_player": {
+      "type": "",
+      "public_label": "",
+      "notes": ""
+    },
+    "slavery": {
+      "status": "",
+      "tattoo_color": "",
+      "master": ""
+    },
+    "virginity": "",
+    "party_member": false,
+    "party_role": ""
   },
   "stats": {
     "Str": 0,
